@@ -60,6 +60,16 @@ class AgenticDataScientist:
         self.ctx: Optional[RunContext] = None
         self.state: Dict[str, Any] = {}
 
+        self.step_registry = {
+            "profile_dataset": self._step_profile_dataset,
+            "build_preprocessor": self._step_build_preprocessor,
+            "select_models": self._step_select_models,
+            "train_models": self._step_train_models,
+            "evaluate": self._step_evaluate,
+            "reflect": self._step_reflect,
+            "write_report": self._step_write_report,
+        }
+
     def log(self, msg: str) -> None:
         """Print a log message when verbose is enabled."""
         if self.verbose:
@@ -71,6 +81,63 @@ class AgenticDataScientist:
         df = pd.read_csv(path)
         self.log(f"Loaded {df.shape[0]} rows × {df.shape[1]} cols")
         return df
+    
+    def _step_profile_dataset(self, state):
+        state["profile"] = profile_dataset(state["df"], self.ctx.target)
+        return state
+
+    def _step_build_preprocessor(self, state):
+        state["preprocessor"] = build_preprocessor(state["profile"])
+        return state
+    
+    def _step_select_models(self, state):
+        state["candidates"] = select_models(state["profile"], seed=self.ctx.seed)
+        self.log(f"Candidate models: {[n for n, _ in state['candidates']]}")
+        return state
+    
+    def _step_train_models(self, state):
+        state["results"] = train_models(
+            df=state['df'],
+            target=self.ctx.target,
+            preprocessor=state["preprocessor"],
+            candidates=state["candidates"],
+            seed=self.ctx.seed,
+            test_size=self.ctx.test_size,
+            output_dir=self.ctx.output_dir,
+            verbose=self.verbose,
+        )
+        return state
+    
+    def _step_evaluate(self, state):
+        state["eval_payload"] = evaluate_best(state["results"], output_dir=self.ctx.output_dir)
+        return state
+
+    def _step_reflect(self, state):
+        state["reflection"] = reflect(
+            dataset_profile=state["profile"],
+            evaluation=state["eval_payload"]["best_metrics"],
+            all_metrics=state["eval_payload"]["all_metrics"],
+        )
+        return state
+    
+    def _step_write_report(self, state):
+
+        save_json(os.path.join(self.ctx.output_dir, "eda_summary.json"), state['profile'])
+        save_json(os.path.join(self.ctx.output_dir, "plan.json"), {"plan": state['plan']})
+        save_json(os.path.join(self.ctx.output_dir, "metrics.json"), state['eval_payload'])
+        save_json(os.path.join(self.ctx.output_dir, "reflection.json"), state['reflection'])
+
+        write_markdown_report(
+            out_path=os.path.join(self.ctx.output_dir, "report.md"),
+            ctx=self.ctx,
+            fingerprint=state["fp"],
+            dataset_profile=state["profile"],
+            plan=state["plan"],
+            eval_payload=state["eval_payload"],
+            reflection=state["reflection"],
+        )
+        return state
+    
 
     def run(
         self,
@@ -113,88 +180,52 @@ class AgenticDataScientist:
         self.state = {"replan_count": 0}
 
         # Load dataset into memory
-        df = self.load_data(data_path)
+        self.state['df'] = self.load_data(data_path)
 
         # If client requested auto target detection, infer it from data
         if target.strip().lower() == "auto":
-            inferred = infer_target_column(df)
+            inferred = infer_target_column(self.state['df'])
             if not inferred:
                 raise ValueError("Could not infer target column. Please provide --target <name>.")
             # Update context with inferred target name
             self.ctx.target = inferred
+            self.state['target'] = inferred
             self.log(f"Inferred target: {inferred}")
 
         # Produce a dataset profile (EDA summary) and a fingerprint used for memory
-        profile = profile_dataset(df, self.ctx.target)
-        fp = dataset_fingerprint(df, self.ctx.target)
+        self.state['profile'] = profile_dataset(self.state['df'], self.state['target'])
+        self.state['fp'] = dataset_fingerprint(self.state['df'], self.state['target'])
 
         # Look up previous runs for the same dataset fingerprint (memory hint)
-        prev = self.memory.get_dataset_record(fp)
-        if prev:
-            self.log(f"Memory hit: previously best={prev.get('best_model')} for fp={fp}")
+        self.state['prev'] = self.memory.get_dataset_record(self.state['fp'])
+        if self.state['prev']:
+            self.log(f"Memory hit: previously best={self.state['prev'].get('best_model')} for fp={self.state['fp']}")
 
         # Create an initial plan informed by the profile and optional memory hint
-        plan = create_plan(profile, memory_hint=prev)
-        self.log(f"Plan: {plan}")
+        self.state['plan'] = create_plan(self.state['profile'], memory_hint=self.state['prev'])
+        self.log(f"Plan: {self.state['plan']}")
 
-        # Execution loop: trains and evaluates, then optionally replans and repeats
+
         while True:
-            # Build preprocessing pipeline tailored to the profile
-            preprocessor = build_preprocessor(profile)
-            # Choose candidate models to try based on the profile
-            candidates = select_models(profile, seed=self.ctx.seed)
-            self.log(f"Candidate models: {[n for n, _ in candidates]}")
 
-            # Train candidate models and persist intermediate artefacts
-            results = train_models(
-                df=df,
-                target=self.ctx.target,
-                preprocessor=preprocessor,
-                candidates=candidates,
-                seed=self.ctx.seed,
-                test_size=self.ctx.test_size,
-                output_dir=self.ctx.output_dir,
-                verbose=self.verbose,
-            )
+            state = self.state 
 
-            # Evaluate the trained models and pick the best one
-            eval_payload = evaluate_best(results, output_dir=self.ctx.output_dir)
+            for step_name in state['plan']:
+                if step_name not in self.step_registry:
+                    raise ValueError(f"Unknown step: {step_name}")
 
-            # Reflect on the evaluation in the context of the dataset profile
-            reflection = reflect(
-                dataset_profile=profile,
-                evaluation=eval_payload["best_metrics"],
-                all_metrics=eval_payload["all_metrics"],
-            )
+                step_fn = self.step_registry[step_name]
 
-            # Persist core run artefacts for later review
-            save_json(os.path.join(self.ctx.output_dir, "eda_summary.json"), profile)
-            save_json(os.path.join(self.ctx.output_dir, "plan.json"), {"plan": plan})
-            save_json(os.path.join(self.ctx.output_dir, "metrics.json"), eval_payload)
-            save_json(os.path.join(self.ctx.output_dir, "reflection.json"), reflection)
+                try:
+                    state = step_fn(state)
+                except Exception as e:
+                    print(f"Step failed: {step_name} → {e}")
+                    raise 
 
-            # Generate a human-readable markdown report summarising the run
-            write_markdown_report(
-                out_path=os.path.join(self.ctx.output_dir, "report.md"),
-                ctx=self.ctx,
-                fingerprint=fp,
-                dataset_profile=profile,
-                plan=plan,
-                eval_payload=eval_payload,
-                reflection=reflection,
-            )
-
-            # Update the memory store with outcomes from this run
-            self.memory.upsert_dataset_record(fp, {
-                "last_seen": now_iso(),
-                "target": self.ctx.target,
-                "shape": profile["shape"],
-                "best_model": eval_payload["best_metrics"]["model"],
-                "best_metrics": eval_payload["best_metrics"],
-            })
+            self.state = state 
 
             # Decide whether the agent should attempt to re-plan and re-run
-            if not should_replan(reflection):
+            if not should_replan(self.state['reflection']):
                 # No replan suggested — finish the run
                 break
 
@@ -208,8 +239,13 @@ class AgenticDataScientist:
             self.log(f"Replanning attempt #{self.state['replan_count']}...")
 
             # apply_replan_strategy returns an updated (plan, profile) pair
-            plan, profile = apply_replan_strategy(plan, profile, reflection)
+            self.state['plan'], self.state['profile'] = apply_replan_strategy(
+                self.state['plan'],
+                self.state['profile'],
+                self.state['reflection']
+            )
 
         # Final log and return the directory containing run outputs
         self.log(f"Done. Outputs saved to: {self.ctx.output_dir}")
         return self.ctx.output_dir
+
