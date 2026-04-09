@@ -59,20 +59,69 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
     imb = float(profile.get("imbalance_ratio") or 1.0)
     class_weight = "balanced" if imb >= 3.0 else None
 
+    # ---- Regularization parameters (adaptive) ----
+    # Logistic Regression
+    LR_C = 0.1 if rows < 1000 else 1.0  # default = 1.0
+
+    # Random Forest
+    RF_n_estimators = 100 if rows < 1000 else 100  # default = 100
+    RF_max_depth = 5 if rows < 1000 else None     # default = None
+    RF_min_samples_leaf = 10 if rows < 1000 else 1  # default = 1
+
+    # Gradient Boosting
+    GB_n_estimators = 50 if rows < 1000 else 100   # default = 100
+    GB_learning_rate = 0.05 if rows < 1000 else 0.1  # default = 0.1
+    GB_max_depth = 2 if rows < 1000 else 3         # default = 3
+
+    # SVM (RBF)
+    SVM_C = 0.5 if rows < 1000 else 1.0  # default = 1.0
+    SVM_gamma = "scale"  # default
+
     candidates: List[Tuple[str, Any]] = [
         ("DummyMostFrequent", DummyClassifier(strategy="most_frequent")),
-        ("LogisticRegression", LogisticRegression(max_iter=2000, class_weight=class_weight)),
-        ("RandomForest", RandomForestClassifier(
-            n_estimators=300, random_state=seed, n_jobs=-1, class_weight=class_weight
-        )),
+
+        ("LogisticRegression",
+         LogisticRegression(
+             max_iter=2000,
+             C=LR_C,
+             penalty="l2",
+             solver="liblinear",
+             class_weight=class_weight
+         )),
+
+        ("RandomForest",
+         RandomForestClassifier(
+             n_estimators=RF_n_estimators,
+             max_depth=RF_max_depth,
+             min_samples_leaf=RF_min_samples_leaf,
+             random_state=seed,
+             n_jobs=-1,
+             class_weight=class_weight
+         )),
     ]
 
     if rows <= 50000:
-        candidates.append(("GradientBoosting", GradientBoostingClassifier(random_state=seed)))
+        candidates.append((
+            "GradientBoosting",
+            GradientBoostingClassifier(
+                n_estimators=GB_n_estimators,
+                learning_rate=GB_learning_rate,
+                max_depth=GB_max_depth,
+                random_state=seed
+            )
+        ))
 
-    # SVC can be expensive after one-hot; keep for smaller problems
     if rows <= 20000 and cols <= 200:
-        candidates.append(("SVC_RBF", SVC(kernel="rbf", probability=True, class_weight=class_weight)))
+        candidates.append((
+            "SVC_RBF",
+            SVC(
+                kernel="rbf",
+                C=SVM_C,
+                gamma=SVM_gamma,
+                probability=True,
+                class_weight=class_weight
+            )
+        ))
 
     return candidates
 

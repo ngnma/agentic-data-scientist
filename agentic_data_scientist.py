@@ -212,7 +212,9 @@ class AgenticDataScientist:
 
             for step_name in state['plan']:
                 if step_name not in self.step_registry:
-                    raise ValueError(f"Unknown step: {step_name}")
+                    # raise ValueError(f"Unknown step: {step_name}")
+                    print(f"Warning: No implementation for step '{step_name}'. Skipping.")
+                    continue
 
                 step_fn = self.step_registry[step_name]
 

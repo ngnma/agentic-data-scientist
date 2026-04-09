@@ -67,15 +67,16 @@ def create_plan(
     
     # TODO: Add sophisticated logic here
     # Example: Check for imbalance
-    imb = dataset_profile.get("imbalance_ratio") or 1.0
-    if imb >= 3.0:
-        # TODO: Make this more sophisticated
-        # Consider: SMOTE, class weights, threshold tuning, etc.
-        plan.insert(plan.index("train_models"), "consider_imbalance_strategy")
+    # imb = dataset_profile.get("imbalance_ratio") or 1.0
+    # if imb >= 3.0:
+    #     # TODO: Make this more sophisticated
+    #     # Consider: SMOTE, class weights, threshold tuning, etc.
+    #     plan.insert(plan.index("train_models"), "consider_imbalance_strategy")
     
     # TODO: Add logic for small datasets
     # if dataset_profile["shape"]["rows"] < 1000:
     #     plan.append("apply_regularization")
+    #     # plan.insert(plan.index("build_preprocessor"), "apply_regularization")
     
     # TODO: Add logic for high-cardinality categoricals
     # high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
