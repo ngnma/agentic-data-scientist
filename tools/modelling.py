@@ -14,6 +14,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 
 from sklearn.metrics import (
     accuracy_score,
@@ -91,6 +92,7 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
     # print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
 
 
+
     candidates: List[Tuple[str, Any]] = [
         ("DummyMostFrequent", DummyClassifier(strategy="most_frequent")),
 
@@ -136,6 +138,18 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
                 class_weight=class_weight
             )
         ))
+
+    # ---- Add extra models based on reflection suggestion ----    
+    extra_models = profile['plan_suggestions'].get('add_models')
+    if extra_models:
+        for model in extra_models:
+            print(f"[Modelling] Adding extra model suggested by reflection: {model}.")
+            if model == "DecisionTree":
+                candidates.append(("DecisionTree", DecisionTreeClassifier(max_depth=3)))
+            elif model == "LinearSVM":
+                candidates.append(("LinearSVM", SVC(kernel="linear", C=SVM_C, probability=True, class_weight=class_weight)))
+            else:
+                pass
 
     return candidates
 

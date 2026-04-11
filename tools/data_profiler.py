@@ -86,5 +86,6 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
         profile["notes"].append("Non-classification target detected: this template focuses on classification.")
 
     profile['plan_notes'] = dict()
+    profile['plan_suggestions'] = dict()
 
     return profile

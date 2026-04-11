@@ -66,6 +66,7 @@ class AgenticDataScientist:
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
             "P3A_feature_selection": self._step_feature_selection,
+            "P3A_simpler_models": self.step_select_simpler_models,
             "P3B_select_models": self._step_select_models,
             "P4B_train_models": self._step_train_models,
             "P5B_evaluate": self._step_evaluate,
@@ -95,7 +96,7 @@ class AgenticDataScientist:
     
     def _step_select_models(self, state):
         state["candidates"] = select_models(state["profile"], seed=self.ctx.seed)
-        self.log(f"Candidate models: {[n for n, _ in state['candidates']]}")
+        # self.log(f"Candidate models: {[n for n, _ in state['candidates']]}")
         return state
     
     def _step_train_models(self, state):
@@ -156,6 +157,25 @@ class AgenticDataScientist:
         state['feature_selector'] = feature_selection()
         return state
     
+    def step_select_simpler_models(self, state):
+        SIMPLER_MODEL_MAP = {
+            "RandomForest": "DecisionTree",
+            "GradientBoosting": "DecisionTree",
+            "SVC_RBF": "LinearSVM",
+        }
+        # Choose a simpler model based on the best performing model from evaluation results
+        best_model = state['eval_payload']['best_metrics']['model']
+        suggested = SIMPLER_MODEL_MAP.get(best_model)
+
+        if suggested:
+            state['profile']['plan_notes']['simpler_model_selection'] = f"Reflection suggested trying simpler model: {suggested} instead of {best_model}."
+            state['profile']['plan_suggestions'].setdefault('add_models', []).append(suggested)
+            self.log(f"Reflection suggests trying simpler model: {suggested} instead of {best_model}")
+        else:
+            state['profile']['plan_notes']['simpler_model_selection'] = f"Model {best_model} is already the most simple model or the simpler model is already exist in candidates but it performed worse. No simpler model will be added to the plan."
+            self.log(f"No simpler model suggestion for best model: {best_model}")
+        return state
+    
 
     def run(
         self,
@@ -195,7 +215,7 @@ class AgenticDataScientist:
             max_replans=max_replans,
         )
         # Internal state used to track replanning attempts
-        self.state = {"replan_count": 0}
+        self.state['replan_count'] = 0
 
         # Load dataset into memory
         self.state['df'] = self.load_data(data_path)
@@ -248,7 +268,7 @@ class AgenticDataScientist:
             # Log iteration info, including plan, profile, evaluation results, reflection, and replan decision
             iter_info = {
                 'plan': self.state['plan'], 
-                'profile': self.state['profile']['plan_notes'], 
+                'plan_notes': self.state['profile']['plan_notes'], 
                 'observation': {
                     "best_model": self.state['eval_payload']["best_metrics"]["model"],
                     "best_metrics": self.state['eval_payload']["best_metrics"]
