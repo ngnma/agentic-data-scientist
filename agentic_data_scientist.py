@@ -61,15 +61,15 @@ class AgenticDataScientist:
         self.state: Dict[str, Any] = {}
 
         self.step_registry = {
-            "profile_dataset": self._step_profile_dataset,
-            "build_preprocessor": self._step_build_preprocessor,
-            "apply_regularization": self._step_apply_regularization,
-            "consider_imbalance_strategy": self._step_consider_imbalance_strategy,
-            "select_models": self._step_select_models,
-            "train_models": self._step_train_models,
-            "evaluate": self._step_evaluate,
-            "reflect": self._step_reflect,
-            "write_report": self._step_write_report,
+            "P1B_profile_dataset": self._step_profile_dataset,
+            "P2B_build_preprocessor": self._step_build_preprocessor,
+            "P3A1_regularization": self._step_apply_regularization,
+            "P3A1_imb_class_weight": self._step_consider_imbalance_strategy,
+            "P3B_select_models": self._step_select_models,
+            "P4B_train_models": self._step_train_models,
+            "P5B_evaluate": self._step_evaluate,
+            "P6B_reflect": self._step_reflect,
+            "P7B_write_report": self._step_write_report,
         }
 
     def log(self, msg: str) -> None:
@@ -156,7 +156,7 @@ class AgenticDataScientist:
         output_root: str = "outputs",
         seed: int = 42,
         test_size: float = 0.2,
-        max_replans: int = 1,
+        max_replans: int = 5,
     ) -> str:
         """
         Main orchestration entry point.
@@ -251,9 +251,9 @@ class AgenticDataScientist:
 
             # If we've already replanned the allowed number of times, stop
             if self.state["replan_count"] >= self.ctx.max_replans:
-                self.log("Replan suggested, but max_replans reached. Stopping.")
+                self.log(f"Replan suggested, but max_replans reached:{self.ctx.max_replans}. Stopping.")
                 break
-
+           
             # Otherwise, increment replan counter and apply the replan strategy
             self.state["replan_count"] += 1
             self.log(f"Replanning attempt #{self.state['replan_count']}...")
@@ -264,6 +264,7 @@ class AgenticDataScientist:
                 self.state['profile'],
                 self.state['reflection']
             )
+            self.log(f"Re-Plan: {self.state['plan']}")
 
         # Final log and return the directory containing run outputs
         self.log(f"Done. Outputs saved to: {self.ctx.output_dir}")

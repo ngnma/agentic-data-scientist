@@ -56,13 +56,13 @@ def create_plan(
     
     # Basic plan structure (students should make this much more sophisticated)
     plan: List[str] = [
-        "profile_dataset",
-        "build_preprocessor",
-        "select_models",
-        "train_models",
-        "evaluate",
-        "reflect",
-        "write_report",
+        "P1B_profile_dataset",
+        "P2B_build_preprocessor",
+        "P3B_select_models",
+        "P4B_train_models",
+        "P5B_evaluate",
+        "P6B_reflect",
+        "P7B_write_report",
     ]
     
     # Add sophisticated logic here
@@ -71,11 +71,11 @@ def create_plan(
     if imb >= 3.0:
         # Make this more sophisticated
         # Consider: SMOTE, class weights, threshold tuning, etc.
-        plan.insert(plan.index("select_models"), "consider_imbalance_strategy")
+        plan.append("P3A1_imb_class_weight")
     
     # Add logic for small datasets
     if dataset_profile["shape"]["rows"] < 1000:
-        plan.insert(plan.index("select_models") - 1, "apply_regularization")
+        plan.append("P3A1_regularization")
     
     # TODO: Add logic for high-cardinality categoricals
     # high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
@@ -91,6 +91,8 @@ def create_plan(
     # if max_missing > 20:
     #     plan.insert(..., "handle_severe_missing_data")
     
+    # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
+    plan.sort()  
     return plan
 
 

@@ -9,7 +9,7 @@ def main() -> None:
     parser.add_argument("--output_root", default="outputs", help="Outputs folder")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--test_size", type=float, default=0.2, help="Test split fraction")
-    parser.add_argument("--max_replans", type=int, default=1, help="Max replans (simple loop)")
+    parser.add_argument("--max_replans", type=int, default=5, help="Max replans (simple loop)")
     parser.add_argument("--quiet", action="store_true", help="Reduce logs")
     args = parser.parse_args()
 

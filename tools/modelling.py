@@ -62,7 +62,7 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
 
     # Log the imbalance strategy decision
     need_imbalance_log = "Yes" if profile['plan_notes'].get('imbalance_strategy') else "No"
-    print(f"[Modelling] Imbalance strategy applied: {need_imbalance_log}. Class weight set to '{class_weight}' for applicable models.")
+    # print(f"[Modelling] Imbalance strategy applied: {need_imbalance_log}. Class weight set to '{class_weight}' for applicable models.")
 
     # ---- Regularization parameters ----
     need_reg =  profile['plan_notes'].get('regularization')
@@ -86,7 +86,7 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
 
     # Log the regularization decision
     reg_log = "Yes" if need_reg else "No"
-    print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
+    # print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
 
 
     candidates: List[Tuple[str, Any]] = [
@@ -179,12 +179,14 @@ def train_models(
         pipe.fit(X_train, y_train)
 
         y_pred = pipe.predict(X_test)
+        y_train_pred = pipe.predict(X_train)
 
         metrics = {
             "model": name,
             "accuracy": float(accuracy_score(y_test, y_pred)),
             "balanced_accuracy": float(balanced_accuracy_score(y_test, y_pred)),
             "f1_macro": float(f1_score(y_test, y_pred, average="macro", zero_division=0)),
+            "f1_train_macro": float(f1_score(y_train, y_train_pred, average="macro", zero_division=0)),
             "precision_macro": float(precision_score(y_test, y_pred, average="macro", zero_division=0)),
             "recall_macro": float(recall_score(y_test, y_pred, average="macro", zero_division=0)),
         }

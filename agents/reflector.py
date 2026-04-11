@@ -51,6 +51,7 @@ def reflect(
     best_model = evaluation.get("model")
     bal_acc = float(evaluation.get("balanced_accuracy", 0.0))
     f1_macro = float(evaluation.get("f1_macro", 0.0))
+    f1_train_macro = float(evaluation.get("f1_train_macro", 0.0))
     imb = float(dataset_profile.get("imbalance_ratio") or 1.0)
     
     issues: List[str] = []
@@ -100,6 +101,14 @@ def reflect(
     # - High-cardinality categorical features
     # - Feature importance patterns
     # - Learning curves (overfitting/underfitting)
+
+    # Add overfitting check
+    # if f1_train_macro - f1_macro > 0.10:
+    if f1_train_macro - f1_macro > 0.01: # just for test TODO: Remove
+        issues.append("Potential overfitting detected (train F1 much higher than test).")
+        suggestions.append(
+            ["P3A1_regularization", "P3A2_stronger_regularization", "P3A_feature_selection", "P3A_simpler_models"]
+        )
     
     # Determine status
     status = "needs_attention" if issues else "ok"
@@ -107,6 +116,9 @@ def reflect(
     # Simple replanning trigger
     # TODO: Make this more sophisticated
     replan_recommended = bool(issues and f1_macro < 0.60)
+    replan_recommended = True # just for test TODO: Remove
+
+    print(f"[Reflection] Suggestions: {suggestions}")
     
     return {
         "status": status,
@@ -162,14 +174,23 @@ def apply_replan_strategy(
     # Copy to avoid modifying originals
     new_plan = list(plan)
     new_profile = dict(dataset_profile)
+
+    # add suggestions to the plan
+    suggestions_list = reflection.get("suggestions", [])
+    for suggestion_list in suggestions_list:
+        for suggestion in suggestion_list:
+            if suggestion not in(new_plan):
+                new_plan.append(suggestion)
+                break
+
     
     # Basic strategy: add a note
-    # TODO: Implement actual strategy changes
-    notes = list(new_profile.get("notes", []))
-    notes.append("Replan: adjusting strategy after reflection.")
-    new_profile["notes"] = notes
+    # # TODO: Implement actual strategy changes
+    # notes = list(new_profile.get("notes", []))
+    # notes.append("Replan: adjusting strategy after reflection.")
+    # new_profile["notes"] = notes
     
-    new_plan.append("replan_attempt")
+    # new_plan.append("replan_attempt")
     
     # TODO: Implement sophisticated replan strategies:
     # - If low performance: try ensemble methods
@@ -177,6 +198,9 @@ def apply_replan_strategy(
     # - If overfitting: add regularization
     # - If underfitting: increase model complexity
     # - If feature issues: add feature engineering steps
+
+    # sort new_plan alfabetically (P1A, P1B, P2A, P2B, etc.) to ensure consistent execution order
+    new_plan.sort()
     
     return new_plan, new_profile
 
