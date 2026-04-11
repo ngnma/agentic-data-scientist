@@ -59,22 +59,23 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
     imb = float(profile.get("imbalance_ratio") or 1.0)
     class_weight = "balanced" if imb >= 3.0 else None
 
-    # ---- Regularization parameters (adaptive) ----
+    # ---- Regularization parameters ----
+    need_reg =  profile['plan_notes'].get('regularization')
     # Logistic Regression
-    LR_C = 0.1 if rows < 1000 else 1.0  # default = 1.0
+    LR_C = 0.1 if need_reg else 1.0  # default = 1.0
 
     # Random Forest
-    RF_n_estimators = 100 if rows < 1000 else 100  # default = 100
-    RF_max_depth = 5 if rows < 1000 else None     # default = None
-    RF_min_samples_leaf = 10 if rows < 1000 else 1  # default = 1
+    RF_n_estimators = 100 if need_reg else 100  # default = 100
+    RF_max_depth = 5 if need_reg else None     # default = None
+    RF_min_samples_leaf = 10 if need_reg else 1  # default = 1
 
     # Gradient Boosting
-    GB_n_estimators = 50 if rows < 1000 else 100   # default = 100
-    GB_learning_rate = 0.05 if rows < 1000 else 0.1  # default = 0.1
-    GB_max_depth = 2 if rows < 1000 else 3         # default = 3
+    GB_n_estimators = 50 if need_reg else 100   # default = 100
+    GB_learning_rate = 0.05 if need_reg else 0.1  # default = 0.1
+    GB_max_depth = 2 if need_reg else 3         # default = 3
 
     # SVM (RBF)
-    SVM_C = 0.5 if rows < 1000 else 1.0  # default = 1.0
+    SVM_C = 0.5 if need_reg else 1.0  # default = 1.0
     SVM_gamma = "scale"  # default
 
     candidates: List[Tuple[str, Any]] = [

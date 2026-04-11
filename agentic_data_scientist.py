@@ -68,6 +68,7 @@ class AgenticDataScientist:
             "evaluate": self._step_evaluate,
             "reflect": self._step_reflect,
             "write_report": self._step_write_report,
+            "apply_regularization": self._step_apply_regularization,
         }
 
     def log(self, msg: str) -> None:
@@ -138,6 +139,10 @@ class AgenticDataScientist:
         )
         return state
     
+    def _step_apply_regularization(self, state):
+        state['profile']['plan_notes']['regularization'] = "Applied regularization to model selection due to small dataset size."
+        return state
+    
 
     def run(
         self,
@@ -205,8 +210,8 @@ class AgenticDataScientist:
         self.state['plan'] = create_plan(self.state['profile'], memory_hint=self.state['prev'])
         self.log(f"Plan: {self.state['plan']}")
 
-
         while True:
+            print("this is profile:",self.state['profile'])
 
             state = self.state 
 
