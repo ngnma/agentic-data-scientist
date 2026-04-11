@@ -65,15 +65,15 @@ def create_plan(
         "write_report",
     ]
     
-    # TODO: Add sophisticated logic here
+    # Add sophisticated logic here
     # Example: Check for imbalance
     imb = dataset_profile.get("imbalance_ratio") or 1.0
     if imb >= 3.0:
-        # TODO: Make this more sophisticated
+        # Make this more sophisticated
         # Consider: SMOTE, class weights, threshold tuning, etc.
         plan.insert(plan.index("select_models"), "consider_imbalance_strategy")
     
-    # TODO: Add logic for small datasets
+    # Add logic for small datasets
     if dataset_profile["shape"]["rows"] < 1000:
         plan.insert(plan.index("select_models") - 1, "apply_regularization")
     

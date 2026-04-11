@@ -208,6 +208,7 @@ class AgenticDataScientist:
 
         # Look up previous runs for the same dataset fingerprint (memory hint)
         self.state['prev'] = self.memory.get_dataset_record(self.state['fp'])
+        print(f"Dataset fingerprint: {self.state['fp']}")
         if self.state['prev']:
             self.log(f"Memory hit: previously best={self.state['prev'].get('best_model')} for fp={self.state['fp']}")
 
@@ -233,6 +234,15 @@ class AgenticDataScientist:
                     raise 
 
             self.state = state 
+
+            # Update the memory store with outcomes from this run
+            self.memory.upsert_dataset_record(self.state['fp'], {
+                "last_seen": now_iso(),
+                "target": self.ctx.target,
+                "shape": self.state['profile']["shape"],
+                "best_model": self.state['eval_payload']["best_metrics"]["model"],
+                "best_metrics": self.state['eval_payload']["best_metrics"],
+            })
 
             # Decide whether the agent should attempt to re-plan and re-run
             if not should_replan(self.state['reflection']):
