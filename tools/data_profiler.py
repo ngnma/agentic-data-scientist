@@ -8,7 +8,7 @@ def infer_target_column(df: pd.DataFrame) -> Optional[str]:
       - prefer common target-like column names
       - else last column if it has relatively low cardinality
     """
-    candidates = ["target", "label", "class", "y", "outcome", "survived"]
+    candidates = ["target", "label", "class", "y", "outcome"] #, "survived"]
     lower_map = {c.lower(): c for c in df.columns}
     for k in candidates:
         if k in lower_map:

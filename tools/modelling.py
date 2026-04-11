@@ -56,11 +56,17 @@ def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
 def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any]]:
     rows = profile["shape"]["rows"]
     cols = profile["shape"]["cols"]
-    imb = float(profile.get("imbalance_ratio") or 1.0)
-    class_weight = "balanced" if imb >= 3.0 else None
+
+    # ---- Handle imbalance strategy ----
+    class_weight = "balanced" if profile['plan_notes'].get('imbalance_strategy') else None
+
+    # Log the imbalance strategy decision
+    need_imbalance_log = "Yes" if profile['plan_notes'].get('imbalance_strategy') else "No"
+    print(f"[Modelling] Imbalance strategy applied: {need_imbalance_log}. Class weight set to '{class_weight}' for applicable models.")
 
     # ---- Regularization parameters ----
     need_reg =  profile['plan_notes'].get('regularization')
+
     # Logistic Regression
     LR_C = 0.1 if need_reg else 1.0  # default = 1.0
 
@@ -77,6 +83,11 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
     # SVM (RBF)
     SVM_C = 0.5 if need_reg else 1.0  # default = 1.0
     SVM_gamma = "scale"  # default
+
+    # Log the regularization decision
+    reg_log = "Yes" if need_reg else "No"
+    print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
+
 
     candidates: List[Tuple[str, Any]] = [
         ("DummyMostFrequent", DummyClassifier(strategy="most_frequent")),

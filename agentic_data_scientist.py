@@ -63,12 +63,13 @@ class AgenticDataScientist:
         self.step_registry = {
             "profile_dataset": self._step_profile_dataset,
             "build_preprocessor": self._step_build_preprocessor,
+            "apply_regularization": self._step_apply_regularization,
+            "consider_imbalance_strategy": self._step_consider_imbalance_strategy,
             "select_models": self._step_select_models,
             "train_models": self._step_train_models,
             "evaluate": self._step_evaluate,
             "reflect": self._step_reflect,
             "write_report": self._step_write_report,
-            "apply_regularization": self._step_apply_regularization,
         }
 
     def log(self, msg: str) -> None:
@@ -140,7 +141,11 @@ class AgenticDataScientist:
         return state
     
     def _step_apply_regularization(self, state):
-        state['profile']['plan_notes']['regularization'] = "Applied regularization to model selection due to small dataset size."
+        state['profile']['plan_notes']['regularization'] = "Applied regularization parameters to classifiers due to small dataset size."
+        return state
+    
+    def _step_consider_imbalance_strategy(self, state):
+        state['profile']['plan_notes']['imbalance_strategy'] = "Add class_weight = 'balanced' to classifiersdue due to detected imbalance (imbalance_ratio >= 3.0)."
         return state
     
 
@@ -211,8 +216,6 @@ class AgenticDataScientist:
         self.log(f"Plan: {self.state['plan']}")
 
         while True:
-            print("this is profile:",self.state['profile'])
-
             state = self.state 
 
             for step_name in state['plan']:
