@@ -22,6 +22,8 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
+from sklearn.feature_selection import SelectKBest, f_classif
+
 
 
 def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
@@ -137,6 +139,8 @@ def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, An
 
     return candidates
 
+def feature_selection(k: int = 10) -> Any:
+    return SelectKBest(score_func=f_classif, k=k)
 
 def train_models(
     df: pd.DataFrame,
@@ -146,6 +150,7 @@ def train_models(
     seed: int,
     test_size: float,
     output_dir: str,
+    feature_selector: Any = None,
     verbose: bool = True,
 ) -> Dict[str, Any]:
     if target not in df.columns:
@@ -169,13 +174,16 @@ def train_models(
     results: List[Dict[str, Any]] = []
 
     for name, model in candidates:
-        if verbose:
-            print(f"[Modelling] Training: {name}")
 
         pipe = Pipeline(steps=[
             ("preprocess", preprocessor),
+            ("feature_selection", feature_selector),
             ("model", model),
         ])
+
+        if verbose:
+            print(f"[Modelling] Training: {name}")
+
         pipe.fit(X_train, y_train)
 
         y_pred = pipe.predict(X_test)

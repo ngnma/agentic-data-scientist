@@ -15,7 +15,7 @@ from agents.planner import create_plan
 from agents.reflector import reflect, should_replan, apply_replan_strategy
 from agents.memory import JSONMemory
 from tools.data_profiler import profile_dataset, infer_target_column, dataset_fingerprint
-from tools.modelling import build_preprocessor, select_models, train_models
+from tools.modelling import build_preprocessor, select_models, train_models, feature_selection
 from tools.evaluation import evaluate_best, write_markdown_report, save_json
 
 
@@ -65,6 +65,7 @@ class AgenticDataScientist:
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
+            "P3A_feature_selection": self._step_feature_selection,
             "P3B_select_models": self._step_select_models,
             "P4B_train_models": self._step_train_models,
             "P5B_evaluate": self._step_evaluate,
@@ -106,6 +107,7 @@ class AgenticDataScientist:
             seed=self.ctx.seed,
             test_size=self.ctx.test_size,
             output_dir=self.ctx.output_dir,
+            feature_selector=state['feature_selector'] if 'feature_selector' in state else None,
             verbose=self.verbose,
         )
         return state
@@ -147,6 +149,11 @@ class AgenticDataScientist:
     
     def _step_consider_imbalance_strategy(self, state):
         state['profile']['plan_notes']['imbalance_strategy'] = "Add class_weight = 'balanced' to classifiersdue due to detected imbalance (imbalance_ratio >= 3.0)."
+        return state
+    
+    def _step_feature_selection(self, state):
+        state['profile']['plan_notes']['feature_selection'] = "Applied SelectKBest feature selection strategy due to reflection suggestions."
+        state['feature_selector'] = feature_selection()
         return state
     
 
