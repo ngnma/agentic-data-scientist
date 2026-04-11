@@ -104,10 +104,10 @@ def reflect(
 
     # Add overfitting check
     # if f1_train_macro - f1_macro > 0.10:
-    if f1_train_macro - f1_macro > 0.01: # just for test TODO: Remove
+    if f1_train_macro - f1_macro > 0.01: # just for test TODO: CLEANUP
         issues.append("Potential overfitting detected (train F1 much higher than test).")
         suggestions.append(
-            ["P3A1_regularization", "P3A2_stronger_regularization", "P3A_feature_selection", "P3A_simpler_models"]
+            ["P3A_regularization", "P3A_feature_selection", "P3A_simpler_models"]
         )
     
     # Determine status
@@ -116,7 +116,7 @@ def reflect(
     # Simple replanning trigger
     # TODO: Make this more sophisticated
     replan_recommended = bool(issues and f1_macro < 0.60)
-    replan_recommended = True # just for test TODO: Remove
+    replan_recommended = True # just for test TODO: CLEANUP
 
     print(f"[Reflection] Suggestions: {suggestions}")
     

@@ -63,8 +63,8 @@ class AgenticDataScientist:
         self.step_registry = {
             "P1B_profile_dataset": self._step_profile_dataset,
             "P2B_build_preprocessor": self._step_build_preprocessor,
-            "P3A1_regularization": self._step_apply_regularization,
-            "P3A1_imb_class_weight": self._step_consider_imbalance_strategy,
+            "P3A_regularization": self._step_apply_regularization,
+            "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
             "P3B_select_models": self._step_select_models,
             "P4B_train_models": self._step_train_models,
             "P5B_evaluate": self._step_evaluate,
@@ -128,6 +128,7 @@ class AgenticDataScientist:
         save_json(os.path.join(self.ctx.output_dir, "plan.json"), {"plan": state['plan']})
         save_json(os.path.join(self.ctx.output_dir, "metrics.json"), state['eval_payload'])
         save_json(os.path.join(self.ctx.output_dir, "reflection.json"), state['reflection'])
+        save_json(os.path.join(self.ctx.output_dir, "history.json"), state['history'])
 
         write_markdown_report(
             out_path=os.path.join(self.ctx.output_dir, "report.md"),
@@ -216,6 +217,8 @@ class AgenticDataScientist:
         self.state['plan'] = create_plan(self.state['profile'], memory_hint=self.state['prev'])
         self.log(f"Plan: {self.state['plan']}")
 
+        self.state['history'] = {}
+
         while True:
             state = self.state 
 
@@ -234,6 +237,19 @@ class AgenticDataScientist:
                     raise 
 
             self.state = state 
+
+            # Log iteration info, including plan, profile, evaluation results, reflection, and replan decision
+            iter_info = {
+                'plan': self.state['plan'], 
+                'profile': self.state['profile']['plan_notes'], 
+                'observation': {
+                    "best_model": self.state['eval_payload']["best_metrics"]["model"],
+                    "best_metrics": self.state['eval_payload']["best_metrics"]
+                }, 
+                'reflection': self.state.get('reflection'),
+                'should_replan': should_replan(self.state['reflection'])
+            }
+            self.state['history'][f'iter_{self.state["replan_count"]}'] = iter_info
 
             # Update the memory store with outcomes from this run
             self.memory.upsert_dataset_record(self.state['fp'], {

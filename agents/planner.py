@@ -71,11 +71,11 @@ def create_plan(
     if imb >= 3.0:
         # Make this more sophisticated
         # Consider: SMOTE, class weights, threshold tuning, etc.
-        plan.append("P3A1_imb_class_weight")
+        plan.append("P3A_imb_class_weight")
     
     # Add logic for small datasets
-    if dataset_profile["shape"]["rows"] < 1000:
-        plan.append("P3A1_regularization")
+    if dataset_profile["shape"]["rows"] < 100:
+        plan.append("P3A_regularization")
     
     # TODO: Add logic for high-cardinality categoricals
     # high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
