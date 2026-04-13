@@ -120,7 +120,7 @@ class AgenticDataScientist:
     def _step_reflect(self, state):
         state["reflection"] = reflect(
             dataset_profile=state["profile"],
-            evaluation=state["eval_payload"]["best_metrics"],
+            evaluation=state["eval_payload"],
             all_metrics=state["eval_payload"]["all_metrics"],
         )
         return state

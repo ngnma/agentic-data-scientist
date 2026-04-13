@@ -51,7 +51,6 @@ def reflect(
     """
     
     best_model = evaluation.get("model")
-    bal_acc = float(evaluation.get("balanced_accuracy", 0.0))
     f1_macro = float(evaluation.get("f1_macro", 0.0))
     f1_train_macro = float(evaluation.get("f1_train_macro", 0.0))
     imb = float(dataset_profile.get("imbalance_ratio") or 1.0)
@@ -60,39 +59,33 @@ def reflect(
     suggestions: List[str] = []
 
 
-    
-    # Basic comparison with dummy baseline
-    dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
-    
-    if dummy is not None:
-        dummy_ba = float(dummy.get("balanced_accuracy", 0.0))
-        improvement = bal_acc - dummy_ba
-        
-        # TODO: Make this more sophisticated
-        # Consider: confidence intervals, effect sizes, etc.
-        if improvement < 0.05:
-            issues.append(
-                f"Best model only {improvement:.3f} better than baseline. "
-                "Weak signal or pipeline issues."
-            )
-            suggestions.append(
-                "Check for target leakage, verify target quality, "
-                "or improve feature engineering."
-            )
-
 
     # ------------------- Reflection logic starts here
-    best_model = evaluation.get("model")
+    best_metrics = evaluation.get('best_metrics')
+    best_model = best_metrics.get("model")
+    all_metrics = evaluation.get("all_metrics", [])
+    classification_report = evaluation.get("classification_report", {})
 
     if significant_tests_succesfull(evaluation):
         print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 
-        if baseline_comparison_successful(evaluation):
+        if baseline_comparison_successful(all_metrics, best_metrics):
             print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
 
-            if per_class_analysis_successful(evaluation, issues, suggestions):
+            if per_class_analysis_successful(classification_report, issues, suggestions):
                 print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
-                # TODO: Go to S3 (model optimization and tuning)
+                
+                if not detect_overfitting(best_metrics, issues, suggestions):
+                    print("[Reflection] No overfitting detected. -> Check underfitting.")
+
+                if not detect_underfitting(best_metrics, issues, suggestions):
+                    print("[Reflection] No underfitting detected. -> Check model performance")
+                
+                if acceptable_performance(best_metrics):
+                    print("[Reflection] Model performance is acceptable. -> Finish.") # TODO: exit the reflect
+                else:
+                    pass
+                    # TODO: Go to S3 (model optimization and tuning)
             else:
                 print("[Reflection] Per-class analysis indicates specific class issues. Consider class-specific strategies.")
                 # TODO: Go to S2 (per-class performance analysis) and Handle class-specific issues (e.g., class_weight, threshold tuning, SMOTE)
@@ -247,16 +240,16 @@ def apply_replan_strategy(
 # def generate_explanation(...):
 
 
-from typing import List, Dict, Any, Optional
-from scipy.stats import wilcoxon
-import numpy as np
 
 
-def baseline_comparison_successful(evaluation: Dict[str, Any]) -> bool:
+
+def baseline_comparison_successful(
+        all_metrics: List[Dict[str, Any]], 
+        best_metrics: Dict[str, Any]
+    ) -> bool:
     """Check if best model significantly outperforms dummy baseline."""
 
-    all_metrics = evaluation.get("all_metrics", [])
-    bal_acc = float(evaluation.get("balanced_accuracy", 0.0))
+    bal_acc = float(best_metrics.get("balanced_accuracy", 0.0))
 
     dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
     
@@ -276,7 +269,7 @@ def significant_tests_succesfull(
     using the Wilcoxon signed-rank test on cv_f1_scores.
     Otherwise return None.
     """
-    best_model_name = evaluation.get("model")
+    best_model_name = evaluation.get("best_metrics").get("model")
     all_metrics = evaluation.get("all_metrics", [])
 
     if not all_metrics or len(all_metrics) < 2:
@@ -335,7 +328,7 @@ def significant_tests_succesfull(
     return True
 
 def per_class_analysis_successful(
-        evaluation: Dict[str, Any], 
+        classification_report: Dict[str, Any], 
         issues: List[str], 
         suggestions: List[str]
     ) -> bool:
@@ -344,7 +337,6 @@ def per_class_analysis_successful(
     """
 
     # Extract per-class metrics
-    classification_report = evaluation.get("classification_report", {})
     class_f1 = [v["f1-score"] for k, v in classification_report.items() if k.startswith("class_")]
     class_precision = [v["precision"] for k, v in classification_report.items() if k.startswith("class_")]
     class_recall = [v["recall"] for k, v in classification_report.items() if k.startswith("class_")]
@@ -382,8 +374,6 @@ def per_class_analysis_successful(
 
     return False if change_treshold else True
 
-
-
 def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggestions: List[str]) -> bool:
     """
     Detect overfitting based on train and test F1 scores.
@@ -392,7 +382,7 @@ def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggesti
     macro_f1 = best_metrics.get("f1_macro", 0.0)
 
     if train_f1 >= 0.7 and (train_f1 - macro_f1) >= 0.15:
-        print("Model may be overfitting. Consider trying a simpler model or tuning hyperparameters.")
+        print("[Reflection] Overfitting detected. -> Consider regularization or simpler models.")
         issues.append("overfitting")
         suggestions.append([
             "regularization",
@@ -410,12 +400,23 @@ def detect_underfitting(best_metrics: Dict[str, Any], issues: List[str], suggest
     macro_f1 = best_metrics.get("f1_macro", 0.0)
 
     if train_f1 < 0.7 and macro_f1 < 0.7:
-        print("Model underperforms on training data. Consider trying a more complex model or tuning hyperparameters.")
+        print("[Reflection] Underfitting detected. -> Consider more complex models or removing regularization.")
         issues.append("underfitting")
         suggestions.append([
             "remove_regularization",
             "use_stronger_model (RandomForestClassifier, GradientBoostingClassifier)"
         ])
+        return True
+    
+    return False
+
+def acceptable_performance(best_metrics: Dict[str, Any]) -> bool:
+    """
+    Check if model performance is acceptable based on balanced accuracy and F1 score.
+    """
+    f1_macro = float(best_metrics.get("f1_macro", 0.0))
+
+    return f1_macro >= 0.70
 
 
 
