@@ -82,20 +82,21 @@ def reflect(
                     print("[Reflection] No underfitting detected. -> Check model performance")
                 
                 if acceptable_performance(best_metrics):
-                    print("[Reflection] Model performance is acceptable. -> Finish.") # TODO: exit the reflect
+                    print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
                 else:
-                    pass
-                    # TODO: Go to S3 (model optimization and tuning)
+                    print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
+                    suggestions.append(f"tune_hyperparameters")
             else:
-                print("[Reflection] Per-class analysis indicates specific class issues. Consider class-specific strategies.")
-                # TODO: Go to S2 (per-class performance analysis) and Handle class-specific issues (e.g., class_weight, threshold tuning, SMOTE)
+                # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
+                pass
 
         else:
-            print("[Reflection] Best model does not significantly outperform baseline. Consider data quality or feature issues.")
+            print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
             # TODO: Go to S4 (data / feature issues)
     else:
-        print("[Reflection] No significant differences detected between models. Consider data quality or feature issues.")
+        print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
         # TODO: Go to S4 (data / feature issues)
+
     # ------------------- Reflection logic ends here
 
 
@@ -384,10 +385,7 @@ def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggesti
     if train_f1 >= 0.7 and (train_f1 - macro_f1) >= 0.15:
         print("[Reflection] Overfitting detected. -> Consider regularization or simpler models.")
         issues.append("overfitting")
-        suggestions.append([
-            "regularization",
-            "use_simpler_model (DecisionTreeClassifier, LinearSVC)"
-            ])
+        suggestions.append('increase_model_complexity')
         return True
     
     return False
@@ -402,10 +400,7 @@ def detect_underfitting(best_metrics: Dict[str, Any], issues: List[str], suggest
     if train_f1 < 0.7 and macro_f1 < 0.7:
         print("[Reflection] Underfitting detected. -> Consider more complex models or removing regularization.")
         issues.append("underfitting")
-        suggestions.append([
-            "remove_regularization",
-            "use_stronger_model (RandomForestClassifier, GradientBoostingClassifier)"
-        ])
+        suggestions.append(["decrease_model_complexity"])
         return True
     
     return False
@@ -421,3 +416,125 @@ def acceptable_performance(best_metrics: Dict[str, Any]) -> bool:
 
 
 
+"""
+1. SIMPLE Models (Overfitting Fix / Regularized)
+SIMPLE_SEARCH_SPACE = {
+    "LogisticRegression": {
+        "model__C": [0.01, 0.1],
+        "model__penalty": ["l2"],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "RandomForest": {
+        "model__n_estimators": [50, 100],
+        "model__max_depth": [3, 5],
+        "model__min_samples_leaf": [5, 10],
+        "model__max_features": ["sqrt"]
+    },
+
+    "GradientBoosting": {
+        "model__n_estimators": [50, 100],
+        "model__learning_rate": [0.03, 0.05],
+        "model__max_depth": [2, 3],
+        "model__subsample": [0.6, 0.8]
+    },
+
+    "SVC_RBF": {
+        "model__C": [0.01, 0.1],
+        "model__gamma": ["scale", 0.001],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "DecisionTree": {
+        "model__max_depth": [2, 3, 5],
+        "model__min_samples_leaf": [5, 10, 20],
+        "model__criterion": ["gini"]
+    },
+
+    "LinearSVM": {
+        "model__C": [0.01, 0.1],
+        "model__class_weight": [None, "balanced"]
+    }
+}
+
+2. COMPLEX (Underfitting Fix)
+COMPLEX_SEARCH_SPACE = {
+    "LogisticRegression": {
+        "model__C": [10, 50, 100],
+        "model__penalty": ["l2"],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "RandomForest": {
+        "model__n_estimators": [200, 300],
+        "model__max_depth": [10, 20, None],
+        "model__min_samples_leaf": [1, 2],
+        "model__max_features": ["sqrt", None]
+    },
+
+    "GradientBoosting": {
+        "model__n_estimators": [200, 300],
+        "model__learning_rate": [0.1],
+        "model__max_depth": [3, 5],
+        "model__subsample": [1.0]
+    },
+
+    "SVC_RBF": {
+        "model__C": [10, 50],
+        "model__gamma": [0.1, 1],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "DecisionTree": {
+        "model__max_depth": [10, 20, None],
+        "model__min_samples_leaf": [1, 2],
+        "model__criterion": ["gini", "entropy"]
+    },
+
+    "LinearSVM": {
+        "model__C": [10, 50, 100],
+        "model__class_weight": [None, "balanced"]
+    }
+}
+
+1. NORMAL (Balanced)
+NORMAL_SEARCH_SPACE = {
+    "LogisticRegression": {
+        "model__C": [0.1, 1, 10],
+        "model__penalty": ["l2"],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "RandomForest": {
+        "model__n_estimators": [100, 200],
+        "model__max_depth": [None, 5, 10],
+        "model__min_samples_leaf": [1, 5],
+        "model__max_features": ["sqrt"]
+    },
+
+    "GradientBoosting": {
+        "model__n_estimators": [100, 200],
+        "model__learning_rate": [0.05, 0.1],
+        "model__max_depth": [3, 5],
+        "model__subsample": [0.8, 1.0]
+    },
+
+    "SVC_RBF": {
+        "model__C": [0.1, 1, 10],
+        "model__gamma": ["scale", 0.1, 0.01],
+        "model__class_weight": [None, "balanced"]
+    },
+
+    "DecisionTree": {
+        "model__max_depth": [None, 5, 10],
+        "model__min_samples_leaf": [1, 5, 10],
+        "model__criterion": ["gini", "entropy"]
+    },
+
+    "LinearSVM": {
+        "model__C": [0.1, 1, 10],
+        "model__class_weight": [None, "balanced"]
+    }
+}
+
+"""
