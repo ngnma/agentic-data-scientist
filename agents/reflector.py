@@ -41,30 +41,23 @@ def reflect(
             - replan_recommended: bool (should we replan?)
     
     TODO for students:
-    - Implement statistical tests (paired t-tests, Wilcoxon tests)
-    - Add per-class performance analysis
-    - Detect overfitting vs underfitting
-    - Analyze confusion matrix patterns
     - Check for data quality issues
     - Prioritize suggestions by expected impact
     - Learn which suggestions work from memory
     """
     
-    best_model = evaluation.get("model")
-    f1_macro = float(evaluation.get("f1_macro", 0.0))
-    f1_train_macro = float(evaluation.get("f1_train_macro", 0.0))
-    imb = float(dataset_profile.get("imbalance_ratio") or 1.0)
-    
+        
     issues: List[str] = []
     suggestions: List[str] = []
 
-
-
-    # ------------------- Reflection logic starts here
+    f1_macro = float(evaluation.get("f1_macro", 0.0))
     best_metrics = evaluation.get('best_metrics')
     best_model = best_metrics.get("model")
     all_metrics = evaluation.get("all_metrics", [])
     classification_report = evaluation.get("classification_report", {})
+
+    # ------------------- Reflection logic starts here
+
 
     if significant_tests_succesfull(evaluation):
         print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
@@ -98,43 +91,14 @@ def reflect(
 
     # ------------------- Reflection logic ends here
 
+    
 
-
-
     
-    # TODO: Add more sophisticated checks
-    
-    # Check F1 score
-    # TODO: Make threshold adaptive based on problem difficulty
-    if f1_macro < 0.60:
-        issues.append("Macro F1 score is modest (<0.60).")
-        suggestions.append(
-            "Try different models, tune hyperparameters, "
-            "or improve preprocessing."
-        )
-    
-    # TODO: Add imbalance-specific analysis
-    if imb >= 3.0:
-        suggestions.append(
-            "Imbalance detected: consider class_weight, "
-            "threshold tuning, or SMOTE."
-        )
-    
-    # TODO: Add checks for:
-    # - Model diversity (are all models performing similarly?)
-    # - Per-class performance (which classes are problematic?)
-    # - Precision-recall tradeoff
+    # TODO: S4 - Data quality and feature issues
     # - High-cardinality categorical features
     # - Feature importance patterns
-    # - Learning curves (overfitting/underfitting)
 
-    # Add overfitting check
-    # if f1_train_macro - f1_macro > 0.10:
-    if f1_train_macro - f1_macro > 0.01: # just for test TODO: CLEANUP
-        issues.append("Potential overfitting detected (train F1 much higher than test).")
-        suggestions.append(
-            ["P3A_regularization", "P3A_feature_selection", "P3A_simpler_models"]
-        )
+
     
     # Determine status
     status = "needs_attention" if issues else "ok"
@@ -178,8 +142,6 @@ def apply_replan_strategy(
     """
     Modify the plan and dataset profile based on reflection.
     
-    This is a very basic implementation. Students should make this sophisticated.
-    
     Args:
         plan: Current execution plan
         dataset_profile: Current dataset profile
@@ -209,22 +171,6 @@ def apply_replan_strategy(
                 new_plan.append(suggestion)
                 break
 
-    
-    # Basic strategy: add a note
-    # # TODO: Implement actual strategy changes
-    # notes = list(new_profile.get("notes", []))
-    # notes.append("Replan: adjusting strategy after reflection.")
-    # new_profile["notes"] = notes
-    
-    # new_plan.append("replan_attempt")
-    
-    # TODO: Implement sophisticated replan strategies:
-    # - If low performance: try ensemble methods
-    # - If imbalance issues: add SMOTE or adjust thresholds
-    # - If overfitting: add regularization
-    # - If underfitting: increase model complexity
-    # - If feature issues: add feature engineering steps
-
     # sort new_plan alfabetically (P1A, P1B, P2A, P2B, etc.) to ensure consistent execution order
     new_plan.sort()
     
@@ -232,14 +178,9 @@ def apply_replan_strategy(
 
 
 # TODO: Add helper functions for reflection
-# def compare_models_statistically(...):
-# def analyze_per_class_performance(...):
-# def detect_overfitting(...):
 # def detect_data_quality_issues(...):
 # def prioritize_suggestions(...):
 # def generate_explanation(...):
-
-
 
 
 
@@ -259,7 +200,6 @@ def baseline_comparison_successful(
         if improvement > 0.05:
             return True
     return False
-
 
 def significant_tests_succesfull(
     evaluation: Dict[str, Any]
