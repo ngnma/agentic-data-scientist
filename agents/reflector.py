@@ -12,7 +12,9 @@ TODO: Extend this module with:
 5. Learning from past reflections (meta-learning)
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
+from scipy.stats import wilcoxon
+import numpy as np
 
 
 def reflect(
@@ -56,6 +58,8 @@ def reflect(
     
     issues: List[str] = []
     suggestions: List[str] = []
+
+
     
     # Basic comparison with dummy baseline
     dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
@@ -75,6 +79,35 @@ def reflect(
                 "Check for target leakage, verify target quality, "
                 "or improve feature engineering."
             )
+
+
+    # ------------------- Reflection logic starts here
+    best_model = evaluation.get("model")
+
+    if significant_tests_succesfull(evaluation):
+        print(f"[Reflection] Statistical tests indicate significant differences between models. Model {best_model} is significantly better than all others.")
+
+        if baseline_comparison_successful(evaluation):
+            print("[Reflection] Best model significantly outperforms baseline. Consider deeper per-class analysis.")
+
+        #     if per_class_analysis_successful(evaluation):
+        #         print("[Reflection] Per-class performance looks balanced. Consider model optimization and further tuning.")
+        #         # TODO: Go to S3 (model optimization and tuning)
+        #     else:
+        #         print("[Reflection] Per-class analysis indicates specific class issues. Consider class-specific strategies.")
+        #         # TODO: Go to S2 (per-class performance analysis) and Handle class-specific issues (e.g., class_weight, threshold tuning, SMOTE)
+
+        else:
+            print("[Reflection] Best model does not significantly outperform baseline. Consider data quality or feature issues.")
+            # TODO: Go to S4 (data / feature issues)
+    else:
+        print("[Reflection] No significant differences detected between models. Consider data quality or feature issues.")
+        # TODO: Go to S4 (data / feature issues)
+    # ------------------- Reflection logic ends here
+
+
+
+
     
     # TODO: Add more sophisticated checks
     
@@ -212,3 +245,91 @@ def apply_replan_strategy(
 # def detect_data_quality_issues(...):
 # def prioritize_suggestions(...):
 # def generate_explanation(...):
+
+
+from typing import List, Dict, Any, Optional
+from scipy.stats import wilcoxon
+import numpy as np
+
+
+def baseline_comparison_successful(evaluation: Dict[str, Any]) -> bool:
+    """Check if best model significantly outperforms dummy baseline."""
+
+    all_metrics = evaluation.get("all_metrics", [])
+    bal_acc = float(evaluation.get("balanced_accuracy", 0.0))
+
+    dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
+    
+    if dummy is not None:
+        dummy_ba = float(dummy.get("balanced_accuracy", 0.0))
+        improvement = bal_acc - dummy_ba
+        if improvement > 0.05:
+            return True
+    return False
+
+
+def significant_tests_succesfull(
+    evaluation: Dict[str, Any]
+) -> bool:
+    """
+    Return best_model_name if it is significantly better than all other models
+    using the Wilcoxon signed-rank test on cv_f1_scores.
+    Otherwise return None.
+    """
+    best_model_name = evaluation.get("model")
+    all_metrics = evaluation.get("all_metrics", [])
+
+    if not all_metrics or len(all_metrics) < 2:
+        return False
+
+    best_model_metrics = next(
+        (
+            m for m in all_metrics
+            if m.get("model") == best_model_name
+            and isinstance(m.get("cv_f1_scores"), list)
+            and len(m.get("cv_f1_scores")) >= 2
+        ),
+        None,
+    )
+
+    if best_model_metrics is None:
+        return False
+
+    best_scores = np.asarray(best_model_metrics["cv_f1_scores"], dtype=float)
+
+    for other_metrics in all_metrics:
+        other_name = other_metrics.get("model")
+
+        if other_name == best_model_name:
+            continue
+
+        other_scores_list = other_metrics.get("cv_f1_scores")
+        if not isinstance(other_scores_list, list) or len(other_scores_list) < 2:
+            return False
+
+        other_scores = np.asarray(other_scores_list, dtype=float)
+
+        # Wilcoxon requires paired samples with equal length
+        if len(best_scores) != len(other_scores):
+            return False
+
+        # Best model must also have a higher mean score
+        if best_scores.mean() <= other_scores.mean():
+            return False
+
+        diffs = best_scores - other_scores
+
+        # No difference -> not significantly better
+        if np.allclose(diffs, 0.0):
+            return False
+
+        try:
+            # one-sided test: best model > other model
+            _, p_value = wilcoxon(diffs, alternative="greater")
+        except ValueError:
+            return False
+
+        if p_value >= 0.05:
+            return False
+
+    return True

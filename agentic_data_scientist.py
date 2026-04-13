@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
+import pandas as pd  # type: ignore
 
 # Agent components and tooling used by the orchestrator
 from agents.planner import create_plan
