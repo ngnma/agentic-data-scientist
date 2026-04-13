@@ -84,8 +84,7 @@ def reflect(
                 if acceptable_performance(best_metrics):
                     print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
                 else:
-                    print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
-                    suggestions.append(f"tune_hyperparameters")
+                    pass
             else:
                 # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
                 pass
@@ -345,7 +344,7 @@ def per_class_analysis_successful(
     # 1. Analyze class imbalance impact on performance
     if max(class_f1) - min(class_f1) > 0.20:
         issues.append("class imbalance")
-        suggestions.append('Class_weights','SMOTE') # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
+        suggestions.append('P3A_class_weights','P3A_SMOTE') # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
         print("[Reflection] Per-class performance fails due to class imbalance detected. -> Consider class_weight or SMOTE.")
         return False
     
@@ -353,24 +352,14 @@ def per_class_analysis_successful(
     change_treshold = False
     if any(class_precision[i] > 0.85 and class_recall[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
         issues.append("High false negatives.")
-        suggestions.append("Lower_decision_threshold")
+        suggestions.append("P4A_Lower_decision_threshold")
         print("[Reflection] Per-class performance fails due to low recall. -> Decrease decision threshold.")
-
-        # suggestions.append( 
-        #     "lower decision threshold (e.g. 0.5 → 0.3)"
-        #     "try models with better class sensitivity (SVC, LogisticRegression)"
-        #     )
         change_treshold = True
 
     if any(class_recall[i] > 0.85 and class_precision[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
         issues.append("High false positives.")
-        suggestions.append("Higher_decision_threshold")
+        suggestions.append("P4A_Higher_decision_threshold")
         print("[Reflection] Per-class performance fails due to low precision. -> Increase decision threshold.")
-
-        # suggestions.append(
-        #     "raise decision threshold (e.g. 0.5 → 0.7)"
-        #     "reduce model complexity (e.g. RandomForest → DecisionTree)"
-        #     )
         change_treshold = True
 
     return False if change_treshold else True
@@ -385,7 +374,7 @@ def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggesti
     if train_f1 >= 0.7 and (train_f1 - macro_f1) >= 0.15:
         print("[Reflection] Overfitting detected. -> Consider regularization or simpler models.")
         issues.append("overfitting")
-        suggestions.append('increase_model_complexity')
+        suggestions.append(["P3A_decrease_model_complexity", "P3A_feature_selection", "P3A_simpler_models"])
         return True
     
     return False
@@ -400,20 +389,43 @@ def detect_underfitting(best_metrics: Dict[str, Any], issues: List[str], suggest
     if train_f1 < 0.7 and macro_f1 < 0.7:
         print("[Reflection] Underfitting detected. -> Consider more complex models or removing regularization.")
         issues.append("underfitting")
-        suggestions.append(["decrease_model_complexity"])
+        suggestions.append(["P3A_increase_model_complexity"])
         return True
     
     return False
 
-def acceptable_performance(best_metrics: Dict[str, Any]) -> bool:
+def acceptable_performance(
+        best_metrics: Dict[str, Any], 
+        suggestions
+    ) -> bool:
     """
     Check if model performance is acceptable based on balanced accuracy and F1 score.
     """
     f1_macro = float(best_metrics.get("f1_macro", 0.0))
 
-    return f1_macro >= 0.70
+    if f1_macro >= 0.70:
+        return True
+    else:
+        print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
+        suggestions.append("P4A_tune_hyperparameters")
+    return False
 
+""" 
+steps should be implemented:
 
+P3A_decrease_model_complexity --> use simple search space
+P3A_increase_model_complexity --> use complex search space
+P4A_tune_hyperparameters--> use normal search space
+P4A_Lower_decision_threshold --> treshold 0.5 -> 0.3
+P4A_Higher_decision_threshold --> treshold 0.5 -> 0.7
+P3A_SMOTE --> ?
+P3A_class_weights --> use this logic
+    In these models add "model__class_weight": ["balanced"] to search space to handle class imbalance:
+        ['LogisticRegression', 'RandomForestClassifier', 'GradientBoostingClassifier', 'SVC_RBF', 'LinearSVM', 'DecisionTreeClassifier']
+    These models have the class_weight parameter that can be set to "balanced" to handle class imbalance.
+        GradientBoostingClassifier
+
+"""
 
 
 """
