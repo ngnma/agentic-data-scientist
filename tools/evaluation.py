@@ -52,8 +52,11 @@ def evaluate_best(training_payload: Dict[str, Any], output_dir: str) -> Dict[str
     cm_path = os.path.join(output_dir, "confusion_matrix.png")
     plot_confusion_matrix(cm, labels, cm_path, f"Confusion Matrix: {best['name']}")
 
-    # Classification report
-    cls_report = classification_report(y_test, y_pred, zero_division=0)
+
+    # Dynamically generate target names
+    target_names = [f"class_{i}" for i in sorted(y_test.unique())]
+    cls_report = classification_report(y_test, y_pred, zero_division=0, target_names=target_names, output_dict=True)
+
 
     return {
         "best_metrics": best["metrics"],

@@ -85,17 +85,17 @@ def reflect(
     best_model = evaluation.get("model")
 
     if significant_tests_succesfull(evaluation):
-        print(f"[Reflection] Statistical tests indicate significant differences between models. Model {best_model} is significantly better than all others.")
+        print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 
         if baseline_comparison_successful(evaluation):
-            print("[Reflection] Best model significantly outperforms baseline. Consider deeper per-class analysis.")
+            print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
 
-        #     if per_class_analysis_successful(evaluation):
-        #         print("[Reflection] Per-class performance looks balanced. Consider model optimization and further tuning.")
-        #         # TODO: Go to S3 (model optimization and tuning)
-        #     else:
-        #         print("[Reflection] Per-class analysis indicates specific class issues. Consider class-specific strategies.")
-        #         # TODO: Go to S2 (per-class performance analysis) and Handle class-specific issues (e.g., class_weight, threshold tuning, SMOTE)
+            if per_class_analysis_successful(evaluation, issues, suggestions):
+                print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
+                # TODO: Go to S3 (model optimization and tuning)
+            else:
+                print("[Reflection] Per-class analysis indicates specific class issues. Consider class-specific strategies.")
+                # TODO: Go to S2 (per-class performance analysis) and Handle class-specific issues (e.g., class_weight, threshold tuning, SMOTE)
 
         else:
             print("[Reflection] Best model does not significantly outperform baseline. Consider data quality or feature issues.")
@@ -333,3 +333,90 @@ def significant_tests_succesfull(
             return False
 
     return True
+
+def per_class_analysis_successful(
+        evaluation: Dict[str, Any], 
+        issues: List[str], 
+        suggestions: List[str]
+    ) -> bool:
+    """
+    Analyze per-class performance and return True if it looks balanced.
+    """
+
+    # Extract per-class metrics
+    classification_report = evaluation.get("classification_report", {})
+    class_f1 = [v["f1-score"] for k, v in classification_report.items() if k.startswith("class_")]
+    class_precision = [v["precision"] for k, v in classification_report.items() if k.startswith("class_")]
+    class_recall = [v["recall"] for k, v in classification_report.items() if k.startswith("class_")]
+
+    # 1. Analyze class imbalance impact on performance
+    if max(class_f1) - min(class_f1) > 0.20:
+        issues.append("class imbalance")
+        suggestions.append('Class_weights','SMOTE') # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
+        print("[Reflection] Per-class performance fails due to class imbalance detected. -> Consider class_weight or SMOTE.")
+        return False
+    
+    # 2. Analyze precision-recall tradeoff for each class
+    change_treshold = False
+    if any(class_precision[i] > 0.85 and class_recall[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
+        issues.append("High false negatives.")
+        suggestions.append("Lower_decision_threshold")
+        print("[Reflection] Per-class performance fails due to low recall. -> Decrease decision threshold.")
+
+        # suggestions.append( 
+        #     "lower decision threshold (e.g. 0.5 → 0.3)"
+        #     "try models with better class sensitivity (SVC, LogisticRegression)"
+        #     )
+        change_treshold = True
+
+    if any(class_recall[i] > 0.85 and class_precision[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
+        issues.append("High false positives.")
+        suggestions.append("Higher_decision_threshold")
+        print("[Reflection] Per-class performance fails due to low precision. -> Increase decision threshold.")
+
+        # suggestions.append(
+        #     "raise decision threshold (e.g. 0.5 → 0.7)"
+        #     "reduce model complexity (e.g. RandomForest → DecisionTree)"
+        #     )
+        change_treshold = True
+
+    return False if change_treshold else True
+
+
+
+def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggestions: List[str]) -> bool:
+    """
+    Detect overfitting based on train and test F1 scores.
+    """
+    train_f1 = best_metrics.get("f1_train_macro", 0.0)
+    macro_f1 = best_metrics.get("f1_macro", 0.0)
+
+    if train_f1 >= 0.7 and (train_f1 - macro_f1) >= 0.15:
+        print("Model may be overfitting. Consider trying a simpler model or tuning hyperparameters.")
+        issues.append("overfitting")
+        suggestions.append([
+            "regularization",
+            "use_simpler_model (DecisionTreeClassifier, LinearSVC)"
+            ])
+        return True
+    
+    return False
+
+def detect_underfitting(best_metrics: Dict[str, Any], issues: List[str], suggestions: List[str]) -> bool:
+    """
+    Detect underfitting based on train and test F1 scores.
+    """
+    train_f1 = best_metrics.get("f1_train_macro", 0.0)
+    macro_f1 = best_metrics.get("f1_macro", 0.0)
+
+    if train_f1 < 0.7 and macro_f1 < 0.7:
+        print("Model underperforms on training data. Consider trying a more complex model or tuning hyperparameters.")
+        issues.append("underfitting")
+        suggestions.append([
+            "remove_regularization",
+            "use_stronger_model (RandomForestClassifier, GradientBoostingClassifier)"
+        ])
+
+
+
+

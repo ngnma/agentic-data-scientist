@@ -343,5 +343,5 @@ def train_models(
     return {
         "results": results,
         "best": results[0],
-        "all_metrics": [r["metrics"] for r in results],
+        "all_metrics": [r["metrics"] for r in results]
     }
