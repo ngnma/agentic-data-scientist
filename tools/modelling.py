@@ -33,7 +33,6 @@ from sklearn.model_selection import (
 from sklearn.feature_selection import SelectKBest, f_classif
 
 
-
 def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
     num_cols = profile["feature_types"]["numeric"]
     cat_cols = profile["feature_types"]["categorical"]
@@ -178,14 +177,15 @@ def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple
         }
     }
 
+    class_weight = internal_memory.get("class_weight", None) 
     MODEL_DICT = {
         "DummyMostFrequent": DummyClassifier(strategy="most_frequent"),
-        "LogisticRegression": LogisticRegression(max_iter=2000),
-        "RandomForest": RandomForestClassifier(random_state=seed, n_jobs=-1),
+        "LogisticRegression": LogisticRegression(max_iter=2000, class_weight=class_weight),
+        "RandomForest": RandomForestClassifier(random_state=seed, n_jobs=-1, class_weight=class_weight),
         "GradientBoosting": GradientBoostingClassifier(random_state=seed),
-        "SVC_RBF": SVC(kernel="rbf", probability=True),
-        "DecisionTree": DecisionTreeClassifier(),
-        "LinearSVM": SVC(kernel="linear", probability=True)
+        "SVC_RBF": SVC(kernel="rbf", probability=True, class_weight=class_weight),
+        "DecisionTree": DecisionTreeClassifier(class_weight=class_weight),
+        "LinearSVM": SVC(kernel="linear", probability=True, class_weight=class_weight)
     }
 
     candidates: List[Tuple[str, Any]] = []

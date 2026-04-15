@@ -90,7 +90,7 @@ def reflect(
     # ------------------- Reflection logic ends here
 
     
-    # suggestions.append(['P4A_Lower_decision_threshold']) # test
+    # suggestions.append(['P3A_imb_class_weight']) # test
     
     # TODO: S4 - Data quality and feature issues
     # - High-cardinality categorical features
@@ -284,7 +284,7 @@ def per_class_analysis_successful(
     # 1. Analyze class imbalance impact on performance
     if max(class_f1) - min(class_f1) > 0.20:
         issues.append("class imbalance")
-        suggestions.append(['P3A_class_weights','P3A_SMOTE']) # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
+        suggestions.append(['P3A_imb_class_weight','P3A_SMOTE']) # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
         print("[Reflection] Per-class performance fails due to class imbalance detected. -> Consider class_weight or SMOTE.")
         return False
     
@@ -353,12 +353,6 @@ def acceptable_performance(
 """ 
 steps should be implemented:
 
-P3A_decrease_model_complexity --> use simple search space
-P3A_increase_model_complexity --> use complex search space
-P4A_tune_hyperparameters--> use normal search space
-P4A_Lower_decision_threshold --> treshold 0.5 -> 0.3
-P4A_Higher_decision_threshold --> treshold 0.5 -> 0.7
-
 P3A_SMOTE --> ?
 P3A_class_weights --> use this logic
     In these models add "model__class_weight": ["balanced"] to search space to handle class imbalance:
@@ -369,125 +363,3 @@ P3A_class_weights --> use this logic
 """
 
 
-"""
-1. SIMPLE Models (Overfitting Fix / Regularized)
-SIMPLE_SEARCH_SPACE = {
-    "LogisticRegression": {
-        "model__C": [0.01, 0.1],
-        "model__penalty": ["l2"],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "RandomForest": {
-        "model__n_estimators": [50, 100],
-        "model__max_depth": [3, 5],
-        "model__min_samples_leaf": [5, 10],
-        "model__max_features": ["sqrt"]
-    },
-
-    "GradientBoosting": {
-        "model__n_estimators": [50, 100],
-        "model__learning_rate": [0.03, 0.05],
-        "model__max_depth": [2, 3],
-        "model__subsample": [0.6, 0.8]
-    },
-
-    "SVC_RBF": {
-        "model__C": [0.01, 0.1],
-        "model__gamma": ["scale", 0.001],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "DecisionTree": {
-        "model__max_depth": [2, 3, 5],
-        "model__min_samples_leaf": [5, 10, 20],
-        "model__criterion": ["gini"]
-    },
-
-    "LinearSVM": {
-        "model__C": [0.01, 0.1],
-        "model__class_weight": [None, "balanced"]
-    }
-}
-
-2. COMPLEX (Underfitting Fix)
-COMPLEX_SEARCH_SPACE = {
-    "LogisticRegression": {
-        "model__C": [10, 50, 100],
-        "model__penalty": ["l2"],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "RandomForest": {
-        "model__n_estimators": [200, 300],
-        "model__max_depth": [10, 20, None],
-        "model__min_samples_leaf": [1, 2],
-        "model__max_features": ["sqrt", None]
-    },
-
-    "GradientBoosting": {
-        "model__n_estimators": [200, 300],
-        "model__learning_rate": [0.1],
-        "model__max_depth": [3, 5],
-        "model__subsample": [1.0]
-    },
-
-    "SVC_RBF": {
-        "model__C": [10, 50],
-        "model__gamma": [0.1, 1],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "DecisionTree": {
-        "model__max_depth": [10, 20, None],
-        "model__min_samples_leaf": [1, 2],
-        "model__criterion": ["gini", "entropy"]
-    },
-
-    "LinearSVM": {
-        "model__C": [10, 50, 100],
-        "model__class_weight": [None, "balanced"]
-    }
-}
-
-1. NORMAL (Balanced)
-NORMAL_SEARCH_SPACE = {
-    "LogisticRegression": {
-        "model__C": [0.1, 1, 10],
-        "model__penalty": ["l2"],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "RandomForest": {
-        "model__n_estimators": [100, 200],
-        "model__max_depth": [None, 5, 10],
-        "model__min_samples_leaf": [1, 5],
-        "model__max_features": ["sqrt"]
-    },
-
-    "GradientBoosting": {
-        "model__n_estimators": [100, 200],
-        "model__learning_rate": [0.05, 0.1],
-        "model__max_depth": [3, 5],
-        "model__subsample": [0.8, 1.0]
-    },
-
-    "SVC_RBF": {
-        "model__C": [0.1, 1, 10],
-        "model__gamma": ["scale", 0.1, 0.01],
-        "model__class_weight": [None, "balanced"]
-    },
-
-    "DecisionTree": {
-        "model__max_depth": [None, 5, 10],
-        "model__min_samples_leaf": [1, 5, 10],
-        "model__criterion": ["gini", "entropy"]
-    },
-
-    "LinearSVM": {
-        "model__C": [0.1, 1, 10],
-        "model__class_weight": [None, "balanced"]
-    }
-}
-
-"""

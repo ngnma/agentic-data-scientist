@@ -154,11 +154,13 @@ class AgenticDataScientist:
         return state
     
     def _step_apply_regularization(self, state):
-        state['profile']['plan_notes']['regularization'] = "Applied regularization parameters to classifiers due to small dataset size."
+        # state['profile']['plan_notes']['regularization'] = "Applied regularization parameters to classifiers due to small dataset size."
         return state
     
     def _step_consider_imbalance_strategy(self, state):
-        state['profile']['plan_notes']['imbalance_strategy'] = "Add class_weight = 'balanced' to classifiersdue due to detected imbalance (imbalance_ratio >= 3.0)."
+        state['internal_memory']['class_weight'] = 'balanced'
+        self.log("Reflection suggests applying class_weight='balanced' to handle class imbalance.")
+        # state['profile']['plan_notes']['imbalance_strategy'] = "Add class_weight = 'balanced' to classifiersdue due to detected imbalance (imbalance_ratio >= 3.0)."
         return state
     
     def _step_feature_selection(self, state):
