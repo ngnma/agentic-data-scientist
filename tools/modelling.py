@@ -66,6 +66,40 @@ def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
 def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any, Dict[str, Any]]]:
 
     SEACRH_SPACE = {
+        "with_reqularization": {
+            "LogisticRegression": {
+                "model__C": [0.1],
+                "model__penalty": ["l2"],
+                "model__solver": ["liblinear"]
+            },
+
+            "RandomForest": {
+                "model__n_estimators": [100],
+                "model__max_depth": [5],
+                "model__min_samples_leaf": [10]
+            },
+
+            "GradientBoosting": {
+                "model__n_estimators": [50],
+                "model__learning_rate": [0.05],
+                "model__max_depth": [2]
+            },
+
+            "SVC_RBF": {
+                "model__C": [0.5],
+                "model__gamma": ["scale"],
+            },
+
+            "DecisionTree": {
+                "model__max_depth": [5]
+            },
+
+            "LinearSVM": {
+                "model__C": [0.5],
+            },
+
+            "DummyMostFrequent": {}
+        },
         "simple": {
             "LogisticRegression": {
                 "model__C": [0.01, 0.1],
@@ -266,12 +300,7 @@ def train_models(
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
     for name, model, param_grid in candidates:
-        # pipe = Pipeline(steps=[
-        #     ("preprocess", preprocessor),
-        #     ("feature_selection", feature_selector or "passthrough"),
-        #     ("smote", smote or "passthrough"),
-        #     ("model", model),
-        # ])
+
         pipe = ImbPipeline(steps=[
             ("preprocess", preprocessor),
             ("feature_selection", feature_selector if feature_selector is not None else "passthrough"),

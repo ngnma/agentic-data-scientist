@@ -65,7 +65,7 @@ class AgenticDataScientist:
             # "P1B_profile_dataset": self._step_profile_dataset,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A_regularization": self._step_apply_regularization,
-            "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
+            "P3A_imb_class_weight": self._step_imb_class_weight,
             "P3A_feature_selection": self._step_feature_selection,
             "P3A_SMOTE": self._step_apply_smote,
             "P3A_simpler_models": self.step_select_simpler_models,
@@ -156,22 +156,23 @@ class AgenticDataScientist:
         return state
     
     def _step_apply_regularization(self, state):
-        # state['profile']['plan_notes']['regularization'] = "Applied regularization parameters to classifiers due to small dataset size."
+        state['internal_memory']['search_space'] = 'with_reqularization'
+        self.log("Reflection suggests applying regularization to handle small dataset size (rows < 100).")
         return state
     
-    def _step_consider_imbalance_strategy(self, state):
+    def _step_imb_class_weight(self, state):
         state['internal_memory']['class_weight'] = 'balanced'
         self.log("Reflection suggests applying class_weight='balanced' to handle class imbalance.")
-        # state['profile']['plan_notes']['imbalance_strategy'] = "Add class_weight = 'balanced' to classifiersdue due to detected imbalance (imbalance_ratio >= 3.0)."
         return state
     
     def _step_feature_selection(self, state):
-        state['profile']['plan_notes']['feature_selection'] = "Applied SelectKBest feature selection strategy due to reflection suggestions."
         state['feature_selector'] = feature_selection()
+        self.log("Reflection suggests applying feature selection to reduce dimensionality and improve model performance.")
         return state
     
     def _step_apply_smote(self, state):
         state['smote'] = apply_smote(self.ctx.seed)
+        self.log("Reflection suggests applying SMOTE to handle class imbalance by generating synthetic samples for the minority class.")
         return state
     
     def step_select_simpler_models(self, state):

@@ -74,23 +74,13 @@ def create_plan(
     # Add candidate models based on dataset size and characteristics
     internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
 
-    # if rows <= 50000: # TODO: un-comment it. it is for testing purposes only
-    #     internal_memory.get('candidates',[]).append('GradientBoosting')
-    # if rows <= 20000 and cols <= 200:
-    #     internal_memory.get('candidates',[]).append('SVC_RBF')
+    if rows <= 50000: # TODO: un-comment it. it is for testing purposes only
+        internal_memory.get('candidates',[]).append('GradientBoosting')
+    if rows <= 20000 and cols <= 200:
+        internal_memory.get('candidates',[]).append('SVC_RBF')
 
-
-
-
-    
-
-    
-    # Add sophisticated logic here
-    # Example: Check for imbalance
-    
+    # All logic for imbalance
     if imb >= 3.0:
-        # Make this more sophisticated
-        # Consider: SMOTE, class weights, threshold tuning, etc.
         plan.append("P3A_imb_class_weight")
     
     # Add logic for small datasets
@@ -122,17 +112,3 @@ def create_plan(
 # def create_high_dimensional_plan(...):
 # def select_preprocessing_strategy(...):
 # def estimate_plan_cost(...):  # For cost-aware planning
-
-
-
-
-# # TODO: NEGIN - Add to planner
-# These are the base plan
-# DummyMostFrequent, RandomForest, LogisticRegression
-
-# SVC_RBF
-# if rows <= 50000:
-#     GradientBoosting
-# if rows <= 20000 and cols <= 200:
-#     SVC_RBF
-# add to -> internal_memory['candidates'] = []

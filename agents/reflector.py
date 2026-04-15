@@ -346,7 +346,7 @@ def acceptable_performance(
         return True
     else:
         print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
-        suggestions.append("P4A_tune_hyperparameters")
+        suggestions.append(["P4A_tune_hyperparameters"])
     return False
 
 
