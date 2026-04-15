@@ -90,7 +90,6 @@ def reflect(
     # ------------------- Reflection logic ends here
 
     
-    # suggestions.append(['P3A_imb_class_weight']) # test
     
     # TODO: S4 - Data quality and feature issues
     # - High-cardinality categorical features
@@ -349,17 +348,5 @@ def acceptable_performance(
         print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
         suggestions.append("P4A_tune_hyperparameters")
     return False
-
-""" 
-steps should be implemented:
-
-P3A_SMOTE --> ?
-P3A_class_weights --> use this logic
-    In these models add "model__class_weight": ["balanced"] to search space to handle class imbalance:
-        ['LogisticRegression', 'RandomForestClassifier', 'GradientBoostingClassifier', 'SVC_RBF', 'LinearSVM', 'DecisionTreeClassifier']
-    These models have the class_weight parameter that can be set to "balanced" to handle class imbalance.
-        GradientBoostingClassifier
-
-"""
 
 

@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Tuple
+from imblearn.over_sampling import SMOTE
 
 import os
 import pandas as pd
@@ -6,6 +7,7 @@ import numpy as np
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -207,6 +209,9 @@ def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple
 def feature_selection(k: int = 10) -> Any:
     return SelectKBest(score_func=f_classif, k=k)
 
+def apply_smote(seed: int) -> Any:
+    return SMOTE(random_state=seed)
+
 def train_models(
     df: pd.DataFrame,
     target: str,
@@ -217,6 +222,7 @@ def train_models(
     output_dir: str,
     internal_memory: Dict[str, Any],
     feature_selector: Any = None,
+    smote: Any = None,
     verbose: bool = True,
 ) -> Dict[str, Any]:
     if target not in df.columns:
@@ -260,9 +266,16 @@ def train_models(
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
     for name, model, param_grid in candidates:
-        pipe = Pipeline(steps=[
+        # pipe = Pipeline(steps=[
+        #     ("preprocess", preprocessor),
+        #     ("feature_selection", feature_selector or "passthrough"),
+        #     ("smote", smote or "passthrough"),
+        #     ("model", model),
+        # ])
+        pipe = ImbPipeline(steps=[
             ("preprocess", preprocessor),
-            ("feature_selection", feature_selector),
+            ("feature_selection", feature_selector if feature_selector is not None else "passthrough"),
+            ("smote", smote if smote is not None else "passthrough"),
             ("model", model),
         ])
 

@@ -1,7 +1,6 @@
 import argparse
 from agentic_data_scientist import AgenticDataScientist
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the offline Agentic Data Scientist.")
     parser.add_argument("--data", required=True, help="Path to CSV dataset")
@@ -23,7 +22,6 @@ def main() -> None:
         max_replans=args.max_replans,
     )
     print(out_dir)
-
 
 if __name__ == "__main__":
     main()

@@ -15,7 +15,7 @@ from agents.planner import create_plan
 from agents.reflector import reflect, should_replan, apply_replan_strategy
 from agents.memory import JSONMemory
 from tools.data_profiler import profile_dataset, infer_target_column, dataset_fingerprint
-from tools.modelling import build_preprocessor, select_models, train_models, feature_selection
+from tools.modelling import build_preprocessor, select_models, train_models, feature_selection, apply_smote
 from tools.evaluation import evaluate_best, write_markdown_report, save_json
 
 
@@ -67,6 +67,7 @@ class AgenticDataScientist:
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
             "P3A_feature_selection": self._step_feature_selection,
+            "P3A_SMOTE": self._step_apply_smote,
             "P3A_simpler_models": self.step_select_simpler_models,
             "P3A_decrease_model_complexity": self.step_decrease_model_complexity,
             "P3A_increase_model_complexity": self.step_increase_model_complexity,
@@ -119,6 +120,7 @@ class AgenticDataScientist:
             output_dir=self.ctx.output_dir,
             internal_memory = state['internal_memory'],
             feature_selector=state['feature_selector'] if 'feature_selector' in state else None,
+            smote=state['smote'] if 'smote' in state else None,
             verbose=self.verbose,
         )
         return state
@@ -166,6 +168,10 @@ class AgenticDataScientist:
     def _step_feature_selection(self, state):
         state['profile']['plan_notes']['feature_selection'] = "Applied SelectKBest feature selection strategy due to reflection suggestions."
         state['feature_selector'] = feature_selection()
+        return state
+    
+    def _step_apply_smote(self, state):
+        state['smote'] = apply_smote(self.ctx.seed)
         return state
     
     def step_select_simpler_models(self, state):
