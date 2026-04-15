@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 def create_plan(
     dataset_profile: Dict[str, Any], 
+    internal_memory: Dict[str, Any],
     memory_hint: Optional[Dict[str, Any]] = None
 ) -> List[str]:
     """
@@ -56,7 +57,7 @@ def create_plan(
     
     # Basic plan structure (students should make this much more sophisticated)
     plan: List[str] = [
-        "P1B_profile_dataset",
+        # "P1B_profile_dataset",
         "P2B_build_preprocessor",
         "P3B_select_models",
         "P4B_train_models",
@@ -64,10 +65,29 @@ def create_plan(
         "P6B_reflect",
         "P7B_write_report",
     ]
+
+    # Extract key dataset characteristics
+    rows = dataset_profile.get("shape", {}).get("rows", 0)
+    cols = dataset_profile.get("shape", {}).get("cols", 0)
+    imb = dataset_profile.get("imbalance_ratio") or 1.0
+
+    # Add candidate models based on dataset size and characteristics
+    internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
+
+    if rows <= 50000:
+        internal_memory.get('candidates',[]).append('GradientBoosting')
+    if rows <= 20000 and cols <= 200:
+        internal_memory.get('candidates',[]).append('SVC_RBF')
+
+
+
+
+    
+
     
     # Add sophisticated logic here
     # Example: Check for imbalance
-    imb = dataset_profile.get("imbalance_ratio") or 1.0
+    
     if imb >= 3.0:
         # Make this more sophisticated
         # Consider: SMOTE, class weights, threshold tuning, etc.
@@ -102,3 +122,17 @@ def create_plan(
 # def create_high_dimensional_plan(...):
 # def select_preprocessing_strategy(...):
 # def estimate_plan_cost(...):  # For cost-aware planning
+
+
+
+
+# # TODO: NEGIN - Add to planner
+# These are the base plan
+# DummyMostFrequent, RandomForest, LogisticRegression
+
+# SVC_RBF
+# if rows <= 50000:
+#     GradientBoosting
+# if rows <= 20000 and cols <= 200:
+#     SVC_RBF
+# add to -> internal_memory['candidates'] = []

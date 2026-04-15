@@ -6,7 +6,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd  # type: ignore
 
@@ -59,9 +59,10 @@ class AgenticDataScientist:
         # Context and transient state populated when run() is executed
         self.ctx: Optional[RunContext] = None
         self.state: Dict[str, Any] = {}
+        self.state['internal_memory'] = {}
 
         self.step_registry = {
-            "P1B_profile_dataset": self._step_profile_dataset,
+            # "P1B_profile_dataset": self._step_profile_dataset,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
@@ -86,16 +87,19 @@ class AgenticDataScientist:
         self.log(f"Loaded {df.shape[0]} rows × {df.shape[1]} cols")
         return df
     
-    def _step_profile_dataset(self, state):
-        state["profile"] = profile_dataset(state["df"], self.ctx.target)
-        return state
+    
+    # def _step_profile_dataset(self, state):
+    #     state["profile"] = profile_dataset(state["df"], self.ctx.target)
+    #     return state
 
+
+    
     def _step_build_preprocessor(self, state):
         state["preprocessor"] = build_preprocessor(state["profile"])
         return state
     
     def _step_select_models(self, state):
-        state["candidates"] = select_models(state["profile"], seed=self.ctx.seed)
+        state["candidates"] = select_models(state["internal_memory"], seed=self.ctx.seed)
         # self.log(f"Candidate models: {[n for n, _ in state['candidates']]}")
         return state
     
@@ -120,8 +124,7 @@ class AgenticDataScientist:
     def _step_reflect(self, state):
         state["reflection"] = reflect(
             dataset_profile=state["profile"],
-            evaluation=state["eval_payload"],
-            all_metrics=state["eval_payload"]["all_metrics"],
+            evaluation=state["eval_payload"]
         )
         return state
     
@@ -241,7 +244,7 @@ class AgenticDataScientist:
             self.log(f"Memory hit: previously best={self.state['prev'].get('best_model')} for fp={self.state['fp']}")
 
         # Create an initial plan informed by the profile and optional memory hint
-        self.state['plan'] = create_plan(self.state['profile'], memory_hint=self.state['prev'])
+        self.state['plan'] = create_plan(self.state['profile'], self.state['internal_memory'], memory_hint=self.state['prev'])
         self.log(f"Plan: {self.state['plan']}")
 
         self.state['history'] = {}
@@ -274,7 +277,8 @@ class AgenticDataScientist:
                     "best_metrics": self.state['eval_payload']["best_metrics"]
                 }, 
                 'reflection': self.state.get('reflection'),
-                'should_replan': should_replan(self.state['reflection'])
+                'should_replan': should_replan(self.state['reflection']),
+                'internal_memory': self.state['internal_memory'],
             }
             self.state['history'][f'iter_{self.state["replan_count"]}'] = iter_info
 

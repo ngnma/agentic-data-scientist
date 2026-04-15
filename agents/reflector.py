@@ -19,8 +19,7 @@ import numpy as np
 
 def reflect(
     dataset_profile: Dict[str, Any],
-    evaluation: Dict[str, Any],
-    all_metrics: List[Dict[str, Any]]
+    evaluation: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Analyze results and generate reflection with issues and suggestions.
@@ -29,8 +28,7 @@ def reflect(
     
     Args:
         dataset_profile: Dataset characteristics
-        evaluation: Best model's metrics
-        all_metrics: Metrics for all trained models
+        evaluation: Dictionary contains Best model's metrics and all models' metrics, classification report, etc.
     
     Returns:
         Dictionary with:
@@ -58,7 +56,7 @@ def reflect(
 
     # ------------------- Reflection logic starts here
 
-
+    # TODO: add a flag, if once significant_tests_succesfull return True, this step should be skipped in next reflection cycles.
     if significant_tests_succesfull(evaluation):
         print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 

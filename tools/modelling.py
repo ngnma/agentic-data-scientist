@@ -28,6 +28,7 @@ from sklearn.model_selection import (
     StratifiedKFold,
     KFold,
     cross_val_score,
+    GridSearchCV
 )
 from sklearn.feature_selection import SelectKBest, f_classif
 
@@ -61,106 +62,264 @@ def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
         remainder="drop",
     )
 
+def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any, Dict[str, Any]]]:
 
-def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any]]:
-    rows = profile["shape"]["rows"]
-    cols = profile["shape"]["cols"]
+    SEACRH_SPACE = {
+        "simple": {
+            "LogisticRegression": {
+                "model__C": [0.01, 0.1],
+                "model__penalty": ["l2"],
+            },
 
-    # ---- Handle imbalance strategy ----
-    class_weight = "balanced" if profile['plan_notes'].get('imbalance_strategy') else None
+            "RandomForest": {
+                "model__n_estimators": [50, 100],
+                "model__max_depth": [3, 5],
+                "model__min_samples_leaf": [5, 10],
+                "model__max_features": ["sqrt"]
+            },
 
-    # Log the imbalance strategy decision
-    need_imbalance_log = "Yes" if profile['plan_notes'].get('imbalance_strategy') else "No"
-    # print(f"[Modelling] Imbalance strategy applied: {need_imbalance_log}. Class weight set to '{class_weight}' for applicable models.")
+            "GradientBoosting": {
+                "model__n_estimators": [50, 100],
+                "model__learning_rate": [0.03, 0.05],
+                "model__max_depth": [2, 3],
+                "model__subsample": [0.6, 0.8]
+            },
 
-    # ---- Regularization parameters ----
-    need_reg =  profile['plan_notes'].get('regularization')
+            "SVC_RBF": {
+                "model__C": [0.01, 0.1],
+                "model__gamma": ["scale", 0.001],
+            },
 
-    # Logistic Regression
-    LR_C = 0.1 if need_reg else 1.0  # default = 1.0
+            "DecisionTree": {
+                "model__max_depth": [2, 3, 5],
+                "model__min_samples_leaf": [5, 10, 20],
+                "model__criterion": ["gini"]
+            },
 
-    # Random Forest
-    RF_n_estimators = 100 if need_reg else 100  # default = 100
-    RF_max_depth = 5 if need_reg else None     # default = None
-    RF_min_samples_leaf = 10 if need_reg else 1  # default = 1
+            "LinearSVM": {
+                "model__C": [0.01, 0.1],
+            },
 
-    # Gradient Boosting
-    GB_n_estimators = 50 if need_reg else 100   # default = 100
-    GB_learning_rate = 0.05 if need_reg else 0.1  # default = 0.1
-    GB_max_depth = 2 if need_reg else 3         # default = 3
+            "DummyMostFrequent": {}
+        },
+        "complex": {
+            "LogisticRegression": {
+                "model__C": [10, 50, 100],
+                "model__penalty": ["l2"],
+            },
 
-    # SVM (RBF)
-    SVM_C = 0.5 if need_reg else 1.0  # default = 1.0
-    SVM_gamma = "scale"  # default
+            "RandomForest": {
+                "model__n_estimators": [200, 300],
+                "model__max_depth": [10, 20, None],
+                "model__min_samples_leaf": [1, 2],
+                "model__max_features": ["sqrt", None]
+            },
 
-    # Log the regularization decision
-    reg_log = "Yes" if need_reg else "No"
-    # print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
+            "GradientBoosting": {
+                "model__n_estimators": [200, 300],
+                "model__learning_rate": [0.1],
+                "model__max_depth": [3, 5],
+                "model__subsample": [1.0]
+            },
+
+            "SVC_RBF": {
+                "model__C": [10, 50],
+                "model__gamma": [0.1, 1],
+            },
+
+            "DecisionTree": {
+                "model__max_depth": [10, 20, None],
+                "model__min_samples_leaf": [1, 2],
+                "model__criterion": ["gini", "entropy"]
+            },
+
+            "LinearSVM": {
+                "model__C": [10, 50, 100],
+            },
+
+            "DummyMostFrequent": {}
+        },
+        "normal": {
+            "LogisticRegression": {
+                "model__C": [0.1, 1, 10],
+                "model__penalty": ["l2"],
+            },
+
+            "RandomForest": {
+                "model__n_estimators": [100, 200],
+                "model__max_depth": [None, 5, 10],
+                "model__min_samples_leaf": [1, 5],
+                "model__max_features": ["sqrt"]
+            },
+
+            "GradientBoosting": {
+                "model__n_estimators": [100, 200],
+                "model__learning_rate": [0.05, 0.1],
+                "model__max_depth": [3, 5],
+                "model__subsample": [0.8, 1.0]
+            },
+
+            "SVC_RBF": {
+                "model__C": [0.1, 1, 10],
+                "model__gamma": ["scale", 0.1, 0.01],
+            },
+
+            "DecisionTree": {
+                "model__max_depth": [None, 5, 10],
+                "model__min_samples_leaf": [1, 5, 10],
+                "model__criterion": ["gini", "entropy"]
+            },
+
+            "LinearSVM": {
+                "model__C": [0.1, 1, 10],
+            },
+
+            "DummyMostFrequent": {}
+        }
+    }
+
+    MODEL_DICT = {
+        "DummyMostFrequent": DummyClassifier(strategy="most_frequent"),
+        "LogisticRegression": LogisticRegression(max_iter=2000),
+        "RandomForest": RandomForestClassifier(random_state=seed, n_jobs=-1),
+        "GradientBoosting": GradientBoostingClassifier(random_state=seed),
+        "SVC_RBF": SVC(kernel="rbf", probability=True),
+        "DecisionTree": DecisionTreeClassifier(),
+        "LinearSVM": SVC(kernel="linear", probability=True)
+    }
+
+    candidates: List[Tuple[str, Any]] = []
+
+    for model_name in internal_memory.get("candidates", []):
+        if model_name in MODEL_DICT:
+            
+            candidates.append((
+                model_name,
+                MODEL_DICT[model_name],
+                SEACRH_SPACE.get(internal_memory.get("search_space", None), {}).get(model_name, {})
+            ))
+        else:
+            print(f"[Modelling] Warning: Model '{model_name}' not recognized. Skipping.")
 
 
 
-    candidates: List[Tuple[str, Any]] = [
-        ("DummyMostFrequent", DummyClassifier(strategy="most_frequent")),
 
-        ("LogisticRegression",
-         LogisticRegression(
-             max_iter=2000,
-             C=LR_C,
-             penalty="l2",
-             solver="liblinear",
-             class_weight=class_weight
-         )),
+    # # TODO: Add to planner
+    # These are the base plan
+    # DummyMostFrequent, RandomForest, LogisticRegression
 
-        ("RandomForest",
-         RandomForestClassifier(
-             n_estimators=RF_n_estimators,
-             max_depth=RF_max_depth,
-             min_samples_leaf=RF_min_samples_leaf,
-             random_state=seed,
-             n_jobs=-1,
-             class_weight=class_weight
-         )),
-    ]
-
-    if rows <= 50000:
-        candidates.append((
-            "GradientBoosting",
-            GradientBoostingClassifier(
-                n_estimators=GB_n_estimators,
-                learning_rate=GB_learning_rate,
-                max_depth=GB_max_depth,
-                random_state=seed
-            )
-        ))
-
-    if rows <= 20000 and cols <= 200:
-        candidates.append((
-            "SVC_RBF",
-            SVC(
-                kernel="rbf",
-                C=SVM_C,
-                gamma=SVM_gamma,
-                probability=True,
-                class_weight=class_weight
-            )
-        ))
-
-    # ---- Add extra models based on reflection suggestion ----    
-    extra_models = profile['plan_suggestions'].get('add_models')
-    if extra_models:
-        for model in extra_models:
-            print(f"[Modelling] Adding extra model suggested by reflection: {model}.")
-            if model == "DecisionTree":
-                candidates.append(("DecisionTree", DecisionTreeClassifier(max_depth=3)))
-            elif model == "LinearSVM":
-                candidates.append(("LinearSVM", SVC(kernel="linear", C=SVM_C, probability=True, class_weight=class_weight)))
-            else:
-                pass
+    # SVC_RBF
+    # if rows <= 50000:
+    #     GradientBoosting
+    # if rows <= 20000 and cols <= 200:
+    #     SVC_RBF
 
     return candidates
 
+
+
+
+# def select_models(profile: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any]]:
+#     rows = profile["shape"]["rows"]
+#     cols = profile["shape"]["cols"]
+
+#     # ---- Handle imbalance strategy ----
+#     class_weight = "balanced" if profile['plan_notes'].get('imbalance_strategy') else None
+
+#     # Log the imbalance strategy decision
+#     need_imbalance_log = "Yes" if profile['plan_notes'].get('imbalance_strategy') else "No"
+#     # print(f"[Modelling] Imbalance strategy applied: {need_imbalance_log}. Class weight set to '{class_weight}' for applicable models.")
+
+#     # ---- Regularization parameters ----
+#     need_reg =  profile['plan_notes'].get('regularization')
+
+#     # Logistic Regression
+#     LR_C = 0.1 if need_reg else 1.0  # default = 1.0
+
+#     # Random Forest
+#     RF_n_estimators = 100 if need_reg else 100  # default = 100
+#     RF_max_depth = 5 if need_reg else None     # default = None
+#     RF_min_samples_leaf = 10 if need_reg else 1  # default = 1
+
+#     # Gradient Boosting
+#     GB_n_estimators = 50 if need_reg else 100   # default = 100
+#     GB_learning_rate = 0.05 if need_reg else 0.1  # default = 0.1
+#     GB_max_depth = 2 if need_reg else 3         # default = 3
+
+#     # SVM (RBF)
+#     SVM_C = 0.5 if need_reg else 1.0  # default = 1.0
+#     SVM_gamma = "scale"  # default
+
+#     # Log the regularization decision
+#     reg_log = "Yes" if need_reg else "No"
+#     # print(f"[Modelling] Regularization applied: {reg_log}. Parameters set accordingly for model selection.")
+
+
+
+
+#     candidates: List[Tuple[str, Any]] = [
+#         ("DummyMostFrequent", DummyClassifier(strategy="most_frequent")),
+
+#         ("LogisticRegression",
+#          LogisticRegression(
+#              max_iter=2000,
+#              C=LR_C,
+#              penalty="l2",
+#              solver="liblinear",
+#              class_weight=class_weight
+#          )),
+
+#         ("RandomForest",
+#          RandomForestClassifier(
+#              n_estimators=RF_n_estimators,
+#              max_depth=RF_max_depth,
+#              min_samples_leaf=RF_min_samples_leaf,
+#              random_state=seed,
+#              n_jobs=-1,
+#              class_weight=class_weight
+#          )),
+#     ]
+
+#     if rows <= 50000:
+#         candidates.append((
+#             "GradientBoosting",
+#             GradientBoostingClassifier(
+#                 n_estimators=GB_n_estimators,
+#                 learning_rate=GB_learning_rate,
+#                 max_depth=GB_max_depth,
+#                 random_state=seed
+#             )
+#         ))
+
+#     if rows <= 20000 and cols <= 200:
+#         candidates.append((
+#             "SVC_RBF",
+#             SVC(
+#                 kernel="rbf",
+#                 C=SVM_C,
+#                 gamma=SVM_gamma,
+#                 probability=True,
+#                 class_weight=class_weight
+#             )
+#         ))
+
+#     # ---- Add extra models based on reflection suggestion ----    
+#     extra_models = profile['plan_suggestions'].get('add_models')
+#     if extra_models:
+#         for model in extra_models:
+#             print(f"[Modelling] Adding extra model suggested by reflection: {model}.")
+#             if model == "DecisionTree":
+#                 candidates.append(("DecisionTree", DecisionTreeClassifier(max_depth=3)))
+#             elif model == "LinearSVM":
+#                 candidates.append(("LinearSVM", SVC(kernel="linear", C=SVM_C, probability=True, class_weight=class_weight)))
+#             else:
+#                 pass
+
+#     return candidates
+
 def feature_selection(k: int = 10) -> Any:
     return SelectKBest(score_func=f_classif, k=k)
+
 
 # def train_models(
 #     df: pd.DataFrame,
@@ -184,17 +343,32 @@ def feature_selection(k: int = 10) -> Any:
 #     X = X.loc[mask]
 #     y = y.loc[mask]
 
-#     # Stratify if possible
-#     stratify = y if (y.nunique(dropna=True) > 1 and y.value_counts().min() >= 2) else None
+#     if y.nunique(dropna=True) < 2:
+#         raise ValueError("Target must contain at least 2 classes for classification.")
+
+#     # Stratify train/test split if possible
+#     stratify = y if y.value_counts().min() >= 2 else None
 
 #     X_train, X_test, y_train, y_test = train_test_split(
-#         X, y, test_size=test_size, random_state=seed, stratify=stratify
+#         X,
+#         y,
+#         test_size=test_size,
+#         random_state=seed,
+#         stratify=stratify,
 #     )
 
 #     results: List[Dict[str, Any]] = []
 
-#     for name, model in candidates:
+#     # Use 5-fold CV when possible; otherwise fall back to the maximum valid number of folds
+#     min_class_count_train = y_train.value_counts().min()
+#     if y_train.nunique(dropna=True) > 1 and min_class_count_train >= 2:
+#         n_splits = min(5, int(min_class_count_train))
+#         cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+#     else:
+#         n_splits = min(5, len(y_train))
+#         cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
+#     for name, model in candidates:
 #         pipe = Pipeline(steps=[
 #             ("preprocess", preprocessor),
 #             ("feature_selection", feature_selector),
@@ -204,6 +378,17 @@ def feature_selection(k: int = 10) -> Any:
 #         if verbose:
 #             print(f"[Modelling] Training: {name}")
 
+#         # 5-fold (or highest valid <=5) CV on the training split only
+#         cv_scores = cross_val_score(
+#             estimator=clone(pipe),
+#             X=X_train,
+#             y=y_train,
+#             cv=cv,
+#             scoring="f1_macro",
+#             n_jobs=None,
+#         )
+
+#         # Fit final model on full training data
 #         pipe.fit(X_train, y_train)
 
 #         y_pred = pipe.predict(X_test)
@@ -217,6 +402,7 @@ def feature_selection(k: int = 10) -> Any:
 #             "f1_train_macro": float(f1_score(y_train, y_train_pred, average="macro", zero_division=0)),
 #             "precision_macro": float(precision_score(y_test, y_pred, average="macro", zero_division=0)),
 #             "recall_macro": float(recall_score(y_test, y_pred, average="macro", zero_division=0)),
+#             "cv_f1_scores": [float(score) for score in cv_scores],
 #         }
 
 #         results.append({
@@ -229,20 +415,27 @@ def feature_selection(k: int = 10) -> Any:
 #         })
 
 #     # Sort by balanced accuracy then macro F1
-#     results.sort(key=lambda r: (r["metrics"]["balanced_accuracy"], r["metrics"]["f1_macro"]), reverse=True)
+#     results.sort(
+#         key=lambda r: (
+#             r["metrics"]["balanced_accuracy"],
+#             r["metrics"]["f1_macro"],
+#         ),
+#         reverse=True,
+#     )
 
 #     return {
 #         "results": results,
 #         "best": results[0],
-#         "all_metrics": [r["metrics"] for r in results],
+#         "all_metrics": [r["metrics"] for r in results]
 #     }
+
 
 
 def train_models(
     df: pd.DataFrame,
     target: str,
     preprocessor: ColumnTransformer,
-    candidates: List[Tuple[str, Any]],
+    candidates: List[Tuple[str, Any, Dict[str, Any]]],
     seed: int,
     test_size: float,
     output_dir: str,
@@ -251,7 +444,7 @@ def train_models(
 ) -> Dict[str, Any]:
     if target not in df.columns:
         raise ValueError(f"Target '{target}' not found.")
-
+    
     X = df.drop(columns=[target]).copy()
     y = df[target].copy()
 
@@ -285,7 +478,7 @@ def train_models(
         n_splits = min(5, len(y_train))
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
-    for name, model in candidates:
+    for name, model, param_grid in candidates:
         pipe = Pipeline(steps=[
             ("preprocess", preprocessor),
             ("feature_selection", feature_selector),
@@ -295,18 +488,20 @@ def train_models(
         if verbose:
             print(f"[Modelling] Training: {name}")
 
-        # 5-fold (or highest valid <=5) CV on the training split only
-        cv_scores = cross_val_score(
+        grid = GridSearchCV(
             estimator=clone(pipe),
-            X=X_train,
-            y=y_train,
+            param_grid=param_grid,
             cv=cv,
             scoring="f1_macro",
             n_jobs=None,
+            refit=True,
         )
 
-        # Fit final model on full training data
-        pipe.fit(X_train, y_train)
+        print(f"[Modelling] Starting GridSearchCV for {name} with parameter: {param_grid}")
+
+        grid.fit(X_train, y_train)
+        pipe = grid.best_estimator_
+        cv_scores = list(grid.cv_results_["mean_test_score"])
 
         y_pred = pipe.predict(X_test)
         y_train_pred = pipe.predict(X_train)
