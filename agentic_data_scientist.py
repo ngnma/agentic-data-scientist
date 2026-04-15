@@ -73,6 +73,7 @@ class AgenticDataScientist:
             "P3B_select_models": self._step_select_models,
             "P4A_tune_hyperparameters": self._step_tune_hyperparameters,
             "P4A_Lower_decision_threshold": self._step_lower_decision_threshold,
+            "P4A_Higher_decision_threshold": self._step_higher_decision_threshold,
             "P4B_train_models": self._step_train_models,
             "P5B_evaluate": self._step_evaluate,
             "P6B_reflect": self._step_reflect,
@@ -116,6 +117,7 @@ class AgenticDataScientist:
             seed=self.ctx.seed,
             test_size=self.ctx.test_size,
             output_dir=self.ctx.output_dir,
+            internal_memory = state['internal_memory'],
             feature_selector=state['feature_selector'] if 'feature_selector' in state else None,
             verbose=self.verbose,
         )
@@ -205,8 +207,16 @@ class AgenticDataScientist:
         else:
             state['internal_memory']['decision_threshold'] = 0.3
             self.log("Reflection suggests lowering the decision threshold to improve recall for underperforming classes.")
-        return state
+            return state
     
+    def _step_higher_decision_threshold(self, state):
+        if state['profile']['n_classes'] > 2:
+            self.log("Reflection suggests raising the decision threshold, but multi-class thresholding is not implemented. Skipping.")
+            return state
+        else:
+            state['internal_memory']['decision_threshold'] = 0.7
+            self.log("Reflection suggests raising the decision threshold to improve precision for overperforming classes.")
+            return state
 
     def run(
         self,

@@ -90,7 +90,7 @@ def reflect(
     # ------------------- Reflection logic ends here
 
     
-
+    # suggestions.append(['P4A_Lower_decision_threshold']) # test
     
     # TODO: S4 - Data quality and feature issues
     # - High-cardinality categorical features
@@ -356,9 +356,9 @@ steps should be implemented:
 P3A_decrease_model_complexity --> use simple search space
 P3A_increase_model_complexity --> use complex search space
 P4A_tune_hyperparameters--> use normal search space
-
 P4A_Lower_decision_threshold --> treshold 0.5 -> 0.3
 P4A_Higher_decision_threshold --> treshold 0.5 -> 0.7
+
 P3A_SMOTE --> ?
 P3A_class_weights --> use this logic
     In these models add "model__class_weight": ["balanced"] to search space to handle class imbalance:
