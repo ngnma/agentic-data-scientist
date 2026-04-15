@@ -163,6 +163,8 @@ def apply_replan_strategy(
 
     # add suggestions to the plan
     suggestions_list = reflection.get("suggestions", [])
+
+    print(f"[FIX][Ref] suggestions_list: {suggestions_list}")
     for suggestion_list in suggestions_list:
         for suggestion in suggestion_list:
             if suggestion not in(new_plan):
@@ -282,7 +284,7 @@ def per_class_analysis_successful(
     # 1. Analyze class imbalance impact on performance
     if max(class_f1) - min(class_f1) > 0.20:
         issues.append("class imbalance")
-        suggestions.append('P3A_class_weights','P3A_SMOTE') # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
+        suggestions.append(['P3A_class_weights','P3A_SMOTE']) # maybe the model is changed after first planning step. Do both SMOTE and class_weight in same reflection cycle.
         print("[Reflection] Per-class performance fails due to class imbalance detected. -> Consider class_weight or SMOTE.")
         return False
     
@@ -290,13 +292,13 @@ def per_class_analysis_successful(
     change_treshold = False
     if any(class_precision[i] > 0.85 and class_recall[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
         issues.append("High false negatives.")
-        suggestions.append("P4A_Lower_decision_threshold")
+        suggestions.append(["P4A_Lower_decision_threshold"])
         print("[Reflection] Per-class performance fails due to low recall. -> Decrease decision threshold.")
         change_treshold = True
 
     if any(class_recall[i] > 0.85 and class_precision[i] < 0.60 for i in range(len(class_precision))) and not change_treshold:
         issues.append("High false positives.")
-        suggestions.append("P4A_Higher_decision_threshold")
+        suggestions.append(["P4A_Higher_decision_threshold"])
         print("[Reflection] Per-class performance fails due to low precision. -> Increase decision threshold.")
         change_treshold = True
 
@@ -354,6 +356,7 @@ steps should be implemented:
 P3A_decrease_model_complexity --> use simple search space
 P3A_increase_model_complexity --> use complex search space
 P4A_tune_hyperparameters--> use normal search space
+
 P4A_Lower_decision_threshold --> treshold 0.5 -> 0.3
 P4A_Higher_decision_threshold --> treshold 0.5 -> 0.7
 P3A_SMOTE --> ?

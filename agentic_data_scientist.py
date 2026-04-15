@@ -68,7 +68,10 @@ class AgenticDataScientist:
             "P3A_imb_class_weight": self._step_consider_imbalance_strategy,
             "P3A_feature_selection": self._step_feature_selection,
             "P3A_simpler_models": self.step_select_simpler_models,
+            "P3A_decrease_model_complexity": self.step_decrease_model_complexity,
+            "P3A_increase_model_complexity": self.step_increase_model_complexity,
             "P3B_select_models": self._step_select_models,
+            "P4A_tune_hyperparameters": self._step_tune_hyperparameters,
             "P4B_train_models": self._step_train_models,
             "P5B_evaluate": self._step_evaluate,
             "P6B_reflect": self._step_reflect,
@@ -178,6 +181,23 @@ class AgenticDataScientist:
             state['profile']['plan_notes']['simpler_model_selection'] = f"Model {best_model} is already the most simple model or the simpler model is already exist in candidates but it performed worse. No simpler model will be added to the plan."
             self.log(f"No simpler model suggestion for best model: {best_model}")
         return state
+    
+    def step_decrease_model_complexity(self, state):
+        state['internal_memory']['search_space'] = 'simple'
+        self.log("Reflection suggests decreasing model complexity by using a simpler hyperparameter search space for candidate models.")
+        self.log(f"[FIX]Updated internal memory with simpler search space: {state['internal_memory']['search_space']}")
+        return state
+    
+    def step_increase_model_complexity(self, state):
+        state['internal_memory']['search_space'] = 'complex'
+        self.log("Reflection suggests increasing model complexity by using a more complex hyperparameter search space for candidate models.")
+        return state
+    
+    def _step_tune_hyperparameters(self, state):
+        if not state['internal_memory'].get('search_space'):
+            state['internal_memory']['search_space'] = 'normal'
+        self.log(f"Applying hyperparameter tuning with search space: {state['internal_memory']['search_space']}")
+        # In a real implementation, this would modify the candidate models to include hyper
     
 
     def run(
