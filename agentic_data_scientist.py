@@ -7,6 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
+import copy
 
 import pandas as pd  # type: ignore
 
@@ -64,6 +65,7 @@ class AgenticDataScientist:
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
             "P2B_build_preprocessor": self._step_build_preprocessor,
+            "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_imb_class_weight,
             "P3A_feature_selection": self._step_feature_selection,
@@ -226,6 +228,12 @@ class AgenticDataScientist:
             state['internal_memory']['decision_threshold'] = 0.7
             self.log("Reflection suggests raising the decision threshold to improve precision for overperforming classes.")
             return state
+        
+    def _step_choose_best_model(self, state):
+        best_model = state['eval_payload']['best_metrics']['model']
+        state['internal_memory']['candidates'] = [best_model]
+        self.log(f"Reflection suggests prioritizing the best performing model: {state['internal_memory']['candidates']} and removing other candidates.")
+        return state
 
     def run(
         self,
@@ -317,15 +325,15 @@ class AgenticDataScientist:
 
             # Log iteration info, including plan, profile, evaluation results, reflection, and replan decision
             iter_info = {
-                'plan': self.state['plan'], 
-                'plan_notes': self.state['profile']['plan_notes'], 
+                'plan': copy.deepcopy(self.state['plan']),
+                'plan_notes': copy.deepcopy(self.state['profile']['plan_notes']),
                 'observation': {
                     "best_model": self.state['eval_payload']["best_metrics"]["model"],
-                    "best_metrics": self.state['eval_payload']["best_metrics"]
-                }, 
-                'reflection': self.state.get('reflection'),
+                    "best_metrics": copy.deepcopy(self.state['eval_payload']["best_metrics"])
+                },
+                'reflection': copy.deepcopy(self.state.get('reflection')),
                 'should_replan': should_replan(self.state['reflection']),
-                'internal_memory': self.state['internal_memory'],
+                'internal_memory': copy.deepcopy(self.state['internal_memory']),
             }
             self.state['history'][f'iter_{self.state["replan_count"]}'] = iter_info
 

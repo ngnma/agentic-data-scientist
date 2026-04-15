@@ -56,38 +56,39 @@ def reflect(
 
     # ------------------- Reflection logic starts here
 
-    # TODO: add a flag, if once significant_tests_succesfull return True, this step should be skipped in next reflection cycles.
-    if significant_tests_succesfull(evaluation):
-        print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
+    # # TODO: add a flag, if once significant_tests_succesfull return True, this step should be skipped in next reflection cycles.
+    # if significant_tests_succesfull(evaluation, suggestions):
+    #     print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 
-        if baseline_comparison_successful(all_metrics, best_metrics):
-            print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
+    #     if baseline_comparison_successful(all_metrics, best_metrics):
+    #         print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
 
-            if per_class_analysis_successful(classification_report, issues, suggestions):
-                print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
+    #         if per_class_analysis_successful(classification_report, issues, suggestions):
+    #             print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
                 
-                if not detect_overfitting(best_metrics, issues, suggestions):
-                    print("[Reflection] No overfitting detected. -> Check underfitting.")
+    #             if not detect_overfitting(best_metrics, issues, suggestions):
+    #                 print("[Reflection] No overfitting detected. -> Check underfitting.")
 
-                if not detect_underfitting(best_metrics, issues, suggestions):
-                    print("[Reflection] No underfitting detected. -> Check model performance")
+    #             if not detect_underfitting(best_metrics, issues, suggestions):
+    #                 print("[Reflection] No underfitting detected. -> Check model performance")
                 
-                if acceptable_performance(best_metrics):
-                    print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
-                else:
-                    pass
-            else:
-                # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
-                pass
+    #             if acceptable_performance(best_metrics):
+    #                 print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
+    #             else:
+    #                 pass
+    #         else:
+    #             # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
+    #             pass
 
-        else:
-            print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
-            # TODO: Go to S4 (data / feature issues)
-    else:
-        print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
-        # TODO: Go to S4 (data / feature issues)
+    #     else:
+    #         print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
+    #         # TODO: Go to S4 (data / feature issues)
+    # else:
+    #     print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
+    #     # TODO: Go to S4 (data / feature issues)
 
-    # ------------------- Reflection logic ends here
+    # # ------------------- Reflection logic ends here
+
 
     
     
@@ -163,7 +164,6 @@ def apply_replan_strategy(
     # add suggestions to the plan
     suggestions_list = reflection.get("suggestions", [])
 
-    print(f"[FIX][Ref] suggestions_list: {suggestions_list}")
     for suggestion_list in suggestions_list:
         for suggestion in suggestion_list:
             if suggestion not in(new_plan):
@@ -201,7 +201,8 @@ def baseline_comparison_successful(
     return False
 
 def significant_tests_succesfull(
-    evaluation: Dict[str, Any]
+    evaluation: Dict[str, Any],
+    suggestions: List[str]
 ) -> bool:
     """
     Return best_model_name if it is significantly better than all other models
@@ -211,8 +212,10 @@ def significant_tests_succesfull(
     best_model_name = evaluation.get("best_metrics").get("model")
     all_metrics = evaluation.get("all_metrics", [])
 
-    if not all_metrics or len(all_metrics) < 2:
+    if not all_metrics:
         return False
+    if len(all_metrics) < 2:
+        return True
 
     best_model_metrics = next(
         (
@@ -263,7 +266,8 @@ def significant_tests_succesfull(
 
         if p_value >= 0.05:
             return False
-
+        
+    suggestions.append(['P3A1_choose_best_model'])
     return True
 
 def per_class_analysis_successful(

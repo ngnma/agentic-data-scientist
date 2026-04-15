@@ -74,10 +74,10 @@ def create_plan(
     # Add candidate models based on dataset size and characteristics
     internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
 
-    if rows <= 50000: # TODO: un-comment it. it is for testing purposes only
-        internal_memory.get('candidates',[]).append('GradientBoosting')
-    if rows <= 20000 and cols <= 200:
-        internal_memory.get('candidates',[]).append('SVC_RBF')
+    # if rows <= 50000: # TODO: un-comment it. it is for testing purposes only
+    #     internal_memory.get('candidates',[]).append('GradientBoosting')
+    # if rows <= 20000 and cols <= 200:
+    #     internal_memory.get('candidates',[]).append('SVC_RBF')
 
     # All logic for imbalance
     if imb >= 3.0:

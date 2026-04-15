@@ -287,7 +287,6 @@ def train_models(
     results: List[Dict[str, Any]] = []
 
     # Threshold logic is only valid for binary classification and only if configured
-    is_binary = y.nunique(dropna=True) == 2
     decision_threshold = internal_memory.get("decision_threshold")
 
     # Use 5-fold CV when possible; otherwise fall back to the maximum valid number of folds
