@@ -73,6 +73,7 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     if profile["is_classification"]:
         vc = y.value_counts(dropna=False)
         profile["class_counts"] = {str(k): int(v) for k, v in vc.items()}
+        profile["n_classes"] = int(vc.nunique())
         if len(vc) >= 2:
             ratio = float(vc.max() / max(vc.min(), 1))
         else:
