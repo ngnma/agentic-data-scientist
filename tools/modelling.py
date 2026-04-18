@@ -35,9 +35,16 @@ from sklearn.model_selection import (
 from sklearn.feature_selection import SelectKBest, f_classif
 
 
-def build_preprocessor(profile: Dict[str, Any]) -> ColumnTransformer:
-    num_cols = profile["feature_types"]["numeric"]
-    cat_cols = profile["feature_types"]["categorical"]
+def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
+    if "drop_cols" in internal_memory:
+        drop_cols = internal_memory["drop_cols"]
+        print(f"[Preprocessing] Dropping columns with high missing values: {drop_cols}")
+
+        num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
+        cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
+    else:
+        num_cols = profile["feature_types"]["numeric"]
+        cat_cols = profile["feature_types"]["categorical"]
 
     numeric_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),

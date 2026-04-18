@@ -64,6 +64,7 @@ class AgenticDataScientist:
 
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
+            "P2A_handle_missing_values": self._step_handle_missing_values,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
@@ -103,7 +104,7 @@ class AgenticDataScientist:
 
     
     def _step_build_preprocessor(self, state):
-        state["preprocessor"] = build_preprocessor(state["profile"])
+        state["preprocessor"] = build_preprocessor(state["profile"], state["internal_memory"])
         return state
     
     def _step_select_models(self, state):
@@ -233,6 +234,12 @@ class AgenticDataScientist:
         best_model = state['eval_payload']['best_metrics']['model']
         state['internal_memory']['candidates'] = [best_model]
         self.log(f"Reflection suggests prioritizing the best performing model: {state['internal_memory']['candidates']} and removing other candidates.")
+        return state
+    
+    def _step_handle_missing_values(self, state):
+        high_missing_cols = [key for key, value in state['profile'].get('missing_pct',{}).items() if value > 20]
+        state['internal_memory']['drop_cols'] = high_missing_cols
+        self.log(f"Planner suggests drop columns with >20% missing values: {high_missing_cols}")
         return state
 
     def run(

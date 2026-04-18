@@ -70,6 +70,9 @@ def create_plan(
     rows = dataset_profile.get("shape", {}).get("rows", 0)
     cols = dataset_profile.get("shape", {}).get("cols", 0)
     imb = dataset_profile.get("imbalance_ratio") or 1.0
+    max_missing = max(dataset_profile.get("missing_pct", {}).values(), default=0)
+    categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
+    n_unique = dataset_profile.get("n_unique_by_col", {})
 
     # Add candidate models based on dataset size and characteristics
     internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
@@ -79,27 +82,35 @@ def create_plan(
     # if rows <= 20000 and cols <= 200:
     #     internal_memory.get('candidates',[]).append('SVC_RBF')
 
-    # All logic for imbalance
+    # Imbalance Classes
     if imb >= 3.0:
         plan.append("P3A_imb_class_weight")
     
-    # Add logic for small datasets
-    if dataset_profile["shape"]["rows"] < 100:
+    # Small Datasets
+    if rows < 100:
         plan.append("P3A_regularization")
     
-    # TODO: Add logic for high-cardinality categoricals
-    # high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
-    # if high_card_cats:
-    #     plan.insert(..., "apply_target_encoding")
+    # High Cardinality Categoricals
+    high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
+    if high_card_cats:
+        plan.append("P2A_apply_encoding")
     
+    # Missing Values
+    if max_missing > 20:
+        plan.append("P2A_handle_missing_values")
+
+    # High Dimensionality
+    if cols > 100 or (rows > 0 and cols / rows > 0.5):
+        plan.append("P3A_feature_selection")
+
+    # ===== Many Categorical Features =====
+    # not sure!
+    # if len(categorical_cols) > 10:
+    #     plan.append("P2A_optimize_categorical_encoding")
+
     # TODO: Use memory hints
     # if memory_hint and memory_hint.get("best_model"):
     #     plan.append(f"prioritize_model:{memory_hint['best_model']}")
-    
-    # TODO: Add logic based on missing data
-    # max_missing = max(dataset_profile["missing_pct"].values())
-    # if max_missing > 20:
-    #     plan.insert(..., "handle_severe_missing_data")
     
     # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
     plan.sort()  
@@ -112,3 +123,11 @@ def create_plan(
 # def create_high_dimensional_plan(...):
 # def select_preprocessing_strategy(...):
 # def estimate_plan_cost(...):  # For cost-aware planning
+
+
+"""
+P2A_handle_missing_values
+P2A_apply_encoding
+
+
+"""
