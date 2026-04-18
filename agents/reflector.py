@@ -81,10 +81,10 @@ def reflect(
 
         else:
             print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
-            # TODO: Go to S4 (data / feature issues)
+            detect_data_quality_issues(issues, suggestions, dataset_profile)
     else:
         print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
-        # TODO: Go to S4 (data / feature issues)
+        detect_data_quality_issues(issues, suggestions, dataset_profile)
 
     # ------------------- Reflection logic ends here
 
@@ -352,4 +352,28 @@ def acceptable_performance(
         suggestions.append(["P4A_tune_hyperparameters"])
     return False
 
+def detect_data_quality_issues(issues: List[str], suggestions: List[str], dataset_profile) -> None:
+    """
+    Placeholder for data quality issue detection logic.
+    In a real implementation, this would analyze the dataset profile for issues like:
+    - High missing value percentages
+    - Extreme class imbalance
+    - High cardinality categorical features
+    - Outliers or noisy data
+    - Feature importance patterns indicating irrelevant features
+    """
+
+    categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
+    n_unique = dataset_profile.get("n_unique_by_col", {})
+    rows = dataset_profile['shape']['rows']
+
+    has_medium_cardinal_col = any(n_unique[c] > 15 for c in categorical_cols)
+    has_constant_col = any(n_unique[c] == 1 for c in categorical_cols)
+    has_id_col = any(n_unique[c] == rows for c in categorical_cols)
+
+    if has_medium_cardinal_col or has_constant_col or has_id_col:
+        issues.append("data_quality: categorical feature issues")
+        suggestions.append(["P2A3_optimize_categorical_encoding"])
+        print("[Reflection] Data quality issue detected: categorical feature issues. -> Consider optimizing encoding")
+    
 
