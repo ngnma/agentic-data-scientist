@@ -111,6 +111,8 @@ def create_plan(
     # TODO: Use memory hints
     # if memory_hint and memory_hint.get("best_model"):
     #     plan.append(f"prioritize_model:{memory_hint['best_model']}")
+
+    # NEW FEATURE : rare categorical features
     
     # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
     plan.sort()  
@@ -126,7 +128,6 @@ def create_plan(
 
 
 """
-P2A_handle_missing_values
 P2A_apply_encoding
 
 

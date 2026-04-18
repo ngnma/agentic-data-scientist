@@ -9,7 +9,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder
 
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -35,38 +35,87 @@ from sklearn.model_selection import (
 from sklearn.feature_selection import SelectKBest, f_classif
 
 
-def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
-    if "drop_cols" in internal_memory:
-        drop_cols = internal_memory["drop_cols"]
-        print(f"[Preprocessing] Dropping columns with high missing values: {drop_cols}")
+# def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
+#     if "drop_cols" in internal_memory:
+#         drop_cols = internal_memory["drop_cols"]
+#         print(f"[Preprocessing] Dropping columns with high missing values: {drop_cols}")
 
-        num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
-        cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
-    else:
-        num_cols = profile["feature_types"]["numeric"]
-        cat_cols = profile["feature_types"]["categorical"]
+#         num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
+#         cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
+#     else:
+#         num_cols = profile["feature_types"]["numeric"]
+#         cat_cols = profile["feature_types"]["categorical"]
+
+#     target_encoding_cols = internal_memory.get('target_encoding', [])
+
+#     numeric_transformer = Pipeline(steps=[
+#         ("imputer", SimpleImputer(strategy="median")),
+#         ("scaler", StandardScaler(with_mean=True)),
+#     ])
+
+#     # scikit-learn renamed `sparse` -> `sparse_output` (v1.2+). Support both.
+#     try:
+#         ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+#     except TypeError:
+#         ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
+
+#     categorical_transformer = Pipeline(steps=[
+#         ("imputer", SimpleImputer(strategy="most_frequent")),
+#         ("onehot", ohe),
+#     ])
+
+#     return ColumnTransformer(
+#         transformers=[
+#             ("num", numeric_transformer, num_cols),
+#             ("cat", categorical_transformer, cat_cols),
+#         ],
+#         remainder="drop",
+#     )
+
+
+def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
+
+    drop_cols = internal_memory.get("drop_cols",[])
+    num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
+    cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
+    target_encoding_cols = [c for c in cat_cols if c in internal_memory.get("target_encoding", [])]
+    onehot_encoded_cols = [c for c in cat_cols if c not in target_encoding_cols]
 
     numeric_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler(with_mean=True)),
     ])
 
-    # scikit-learn renamed `sparse` -> `sparse_output` (v1.2+). Support both.
     try:
-        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        onehot_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
     except TypeError:
-        ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
+        onehot_encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
 
-    categorical_transformer = Pipeline(steps=[
+    onehot_enc_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", ohe),
+        ("onehot", onehot_encoder),
     ])
 
+    target_enc_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("target_encoder", TargetEncoder()),
+    ])
+
+    transformers = [
+        ("num", numeric_transformer, num_cols),
+    ]
+
+    if onehot_encoded_cols:
+        transformers.append(("cat_ohe", onehot_enc_transformer, onehot_encoded_cols))
+        print(f"[Preprocessing] Applying OneHotEncoder to columns: {onehot_encoded_cols}")
+
+    if target_encoding_cols:
+        transformers.append(("cat_target", target_enc_transformer, target_encoding_cols))
+        print(f"[Preprocessing] Applying TargetEncoder to columns: {target_encoding_cols}")
+
+
     return ColumnTransformer(
-        transformers=[
-            ("num", numeric_transformer, num_cols),
-            ("cat", categorical_transformer, cat_cols),
-        ],
+        transformers=transformers,
         remainder="drop",
     )
 

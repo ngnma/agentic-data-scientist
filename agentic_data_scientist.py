@@ -65,6 +65,7 @@ class AgenticDataScientist:
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
             "P2A_handle_missing_values": self._step_handle_missing_values,
+            "P2A_apply_encoding": self._step_apply_encoding,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
@@ -237,10 +238,27 @@ class AgenticDataScientist:
         return state
     
     def _step_handle_missing_values(self, state):
-        high_missing_cols = [key for key, value in state['profile'].get('missing_pct',{}).items() if value > 20]
+        high_missing_cols = [key for key, value in state['profile'].get('missing_pct',{}).items() if value >= 20]
         state['internal_memory']['drop_cols'] = high_missing_cols
         self.log(f"Planner suggests drop columns with >20% missing values: {high_missing_cols}")
         return state
+    
+    def _step_apply_encoding(self, state):
+        categorical_cols = state['profile'].get("feature_types", {}).get("categorical", [])
+        n_unique = state['profile'].get("n_unique_by_col", {})
+
+        high_cardinal_cols = [c for c in categorical_cols if n_unique[c] >= 50]
+        state['internal_memory']['target_encoding'] = high_cardinal_cols
+        self.log(f"Planner suggests applying target encoding to high cardinality categorical columns: {high_cardinal_cols}")
+        return state
+    
+    # def _step_optimize_categorical_encoding(self, state):
+    #     high_cardinal_cols = [key for key, value in state['profile'].get('n_unique_by_col',{}).items() if value >= 50]
+    #     medium_cardinal_cols = [key for key, value in state['profile'].get('n_unique_by_col',{}).items() if value >= 15 and value < 50]
+    #     state['internal_memory']['target_encoding'] = high_cardinal_cols
+    #     state['internal_memory']['onehot_encoding'] = medium_cardinal_cols
+    #     self.log(f"Planner suggests applying target encoding to high cardinality categorical columns: {high_cardinal_cols} and one-hot encoding to medium cardinality categorical columns: {medium_cardinal_cols}")
+    #     return state
 
     def run(
         self,
