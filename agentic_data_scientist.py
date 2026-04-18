@@ -64,9 +64,10 @@ class AgenticDataScientist:
 
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
-            "P2A1_handle_missing_values": self._step_handle_missing_values,
+            "P2A0_handle_missing_values": self._step_handle_missing_values,
             "P2A2_apply_encoding": self._step_apply_encoding,
             "P2A3_optimize_categorical_encoding": self._step_optimize_categorical_encoding,
+            "P2A4_handle_numeric_outliers": self._step_numeric_outlier_handling,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
@@ -297,6 +298,20 @@ class AgenticDataScientist:
         state['internal_memory']['ordinal_encoding'] = ordinal_encoding_cols
         state['internal_memory']['frequency_encoding'] = frequency_encoding_cols
         state['internal_memory']['drop_cols'] = drop_cols
+
+        return state
+    
+    def _step_numeric_outlier_handling(self, state):
+        numerical_cols = state['profile'].get("feature_types", {}).get("numeric", [])
+        outlier_ratio = state['profile'].get("outlier_ratio_by_col", {})
+        drop_cols = state['internal_memory'].get('drop_cols', []) 
+
+        high_outliers = [key for key, value in outlier_ratio.items() if value >= 0.01 and key not in drop_cols]
+        low_outliers = [c for c in numerical_cols if c not in high_outliers and c not in drop_cols] 
+
+        state['internal_memory']['scale'] = low_outliers
+        state['internal_memory']['clip_and_scale'] = high_outliers
+        self.log(f"Reflector suggests scaling numeric columns with low outlier ratio (<5%): {low_outliers} and clipping + scaling columns with high outlier ratio (>=5%): {high_outliers}")
 
         return state
 

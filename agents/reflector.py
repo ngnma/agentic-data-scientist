@@ -375,5 +375,8 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
         issues.append("data_quality: categorical feature issues")
         suggestions.append(["P2A3_optimize_categorical_encoding"])
         print("[Reflection] Data quality issue detected: categorical feature issues. -> Consider optimizing encoding")
+
+    # TODO: use P2A4_handle_numeric_outliers
+
     
 

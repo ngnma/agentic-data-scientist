@@ -97,7 +97,7 @@ def create_plan(
     
     # Missing Values
     if max_missing > 20:
-        plan.append("P2A1_handle_missing_values")
+        plan.append("P2A0_handle_missing_values")
 
     # High Dimensionality
     if cols > 100 or (rows > 0 and cols / rows > 0.5):

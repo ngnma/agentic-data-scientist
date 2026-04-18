@@ -69,6 +69,31 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
         notes.append("High dimensionality (>100 columns): watch one-hot expansion and overfitting.")
     profile["notes"] = notes
 
+    # outlier_ratio_by_col using IQR method
+    outlier_ratio_by_col = {}
+    for col in numeric_cols:
+        s = pd.to_numeric(X[col], errors="coerce").dropna()
+
+        if s.empty:
+            outlier_ratio_by_col[str(col)] = 0.0
+            continue
+
+        q1 = s.quantile(0.25)
+        q3 = s.quantile(0.75)
+        iqr = q3 - q1
+
+        if iqr == 0:
+            outlier_ratio_by_col[str(col)] = 0.0
+            continue
+
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        ratio = ((s < lower) | (s > upper)).mean()
+
+        outlier_ratio_by_col[str(col)] = round(float(ratio), 4)
+
+    profile["outlier_ratio_by_col"] = outlier_ratio_by_col
+
     # Class balance if classification
     if profile["is_classification"]:
         vc = y.value_counts(dropna=False)

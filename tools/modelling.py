@@ -9,7 +9,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder, OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder, OrdinalEncoder, FunctionTransformer
 
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -33,70 +33,54 @@ from sklearn.model_selection import (
     GridSearchCV
 )
 from sklearn.feature_selection import SelectKBest, f_classif
-
-
-# def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
-#     if "drop_cols" in internal_memory:
-#         drop_cols = internal_memory["drop_cols"]
-#         print(f"[Preprocessing] Dropping columns with high missing values: {drop_cols}")
-
-#         num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
-#         cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
-#     else:
-#         num_cols = profile["feature_types"]["numeric"]
-#         cat_cols = profile["feature_types"]["categorical"]
-
-#     target_encoding_cols = internal_memory.get('target_encoding', [])
-
-#     numeric_transformer = Pipeline(steps=[
-#         ("imputer", SimpleImputer(strategy="median")),
-#         ("scaler", StandardScaler(with_mean=True)),
-#     ])
-
-#     # scikit-learn renamed `sparse` -> `sparse_output` (v1.2+). Support both.
-#     try:
-#         ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-#     except TypeError:
-#         ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
-
-#     categorical_transformer = Pipeline(steps=[
-#         ("imputer", SimpleImputer(strategy="most_frequent")),
-#         ("onehot", ohe),
-#     ])
-
-#     return ColumnTransformer(
-#         transformers=[
-#             ("num", numeric_transformer, num_cols),
-#             ("cat", categorical_transformer, cat_cols),
-#         ],
-#         remainder="drop",
-#     )
+from scipy.stats.mstats import winsorize
 
 
 
 def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
 
     drop_cols = internal_memory.get("drop_cols",[])
-    num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
-    cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
 
+    # Categorical columns
+    cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
     target_enc_cols = internal_memory.get("target_encoding", [])
     ordinal_enc_cols = internal_memory.get("ordinal_encoding", [])
     frequency_enc_cols = internal_memory.get("frequency_encoding", [])
     onehot_enc_cols = internal_memory.get("onehot_encoding", cat_cols)  # default to all cat_cols if not set
 
+    # Numeric columns
+    num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
+    clip_and_scale_cols = internal_memory.get("clip_and_scale", [])
+    scale_cols = internal_memory.get("scale", num_cols)  # default to all num_cols if not set
 
     transformers = []
-    if num_cols:
+
+    # Numeric Transformers
+
+    if scale_cols:
         transformers.append((
-            "num",
+            "num_scale",
             Pipeline(steps=[
                 ("imputer", SimpleImputer(strategy="median")),
                 ("scaler", StandardScaler(with_mean=True)),
             ]),
-            num_cols
+            scale_cols
         ))
-        print(f"[Preprocessing] Applying numeric transformations to columns: {num_cols}")
+        print(f"[Preprocessing] Applying scaling to numeric columns: {scale_cols}")
+
+    if clip_and_scale_cols:
+        transformers.append((
+            "num_clip_scale",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("winsorize", FunctionTransformer(lambda X: winsorize(X, limits=[0.01, 0.01]), validate=False)),
+                ("scaler", StandardScaler(with_mean=True)),
+            ]),
+            clip_and_scale_cols
+        ))
+        print(f"[Preprocessing] Applying clipping + scaling to numeric columns: {clip_and_scale_cols}")
+
+    # Categorical Transformers
 
     if onehot_enc_cols:
         transformers.append((
