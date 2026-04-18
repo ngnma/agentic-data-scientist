@@ -64,8 +64,9 @@ class AgenticDataScientist:
 
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
-            "P2A_handle_missing_values": self._step_handle_missing_values,
-            "P2A_apply_encoding": self._step_apply_encoding,
+            "P2A1_handle_missing_values": self._step_handle_missing_values,
+            "P2A2_apply_encoding": self._step_apply_encoding,
+            "P2A3_optimize_categorical_encoding": self._step_optimize_categorical_encoding,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
@@ -246,19 +247,58 @@ class AgenticDataScientist:
     def _step_apply_encoding(self, state):
         categorical_cols = state['profile'].get("feature_types", {}).get("categorical", [])
         n_unique = state['profile'].get("n_unique_by_col", {})
+        drop_cols = state['internal_memory'].get('drop_cols', [])
 
-        high_cardinal_cols = [c for c in categorical_cols if n_unique[c] >= 50]
-        state['internal_memory']['target_encoding'] = high_cardinal_cols
-        self.log(f"Planner suggests applying target encoding to high cardinality categorical columns: {high_cardinal_cols}")
+        target_encoding_cols = [c for c in categorical_cols if n_unique[c] >= 50 and c not in drop_cols]
+        onehot_encoding_cols = [c for c in categorical_cols if n_unique[c] < 50 and c not in drop_cols]
+
+        state['internal_memory']['target_encoding'] = target_encoding_cols
+        state['internal_memory']['onehot_encoding'] = onehot_encoding_cols
+
+        self.log(f"Planner suggests applying target encoding to high cardinality categorical columns: {target_encoding_cols}")
         return state
     
-    # def _step_optimize_categorical_encoding(self, state):
-    #     high_cardinal_cols = [key for key, value in state['profile'].get('n_unique_by_col',{}).items() if value >= 50]
-    #     medium_cardinal_cols = [key for key, value in state['profile'].get('n_unique_by_col',{}).items() if value >= 15 and value < 50]
-    #     state['internal_memory']['target_encoding'] = high_cardinal_cols
-    #     state['internal_memory']['onehot_encoding'] = medium_cardinal_cols
-    #     self.log(f"Planner suggests applying target encoding to high cardinality categorical columns: {high_cardinal_cols} and one-hot encoding to medium cardinality categorical columns: {medium_cardinal_cols}")
-    #     return state
+    def _step_optimize_categorical_encoding(self, state):
+        categorical_cols = state['profile'].get("feature_types", {}).get("categorical", [])
+        n_unique = state['profile'].get("n_unique_by_col", {})
+        is_ordinal = state['profile'].get("is_ordinal", {})
+        rows = state['profile']['shape']['rows']
+
+        drop_cols = state['internal_memory'].get('drop_cols', []) # start with any columns already marked for dropping (e.g. high missing)
+        ordinal_encoding_cols = [] 
+        target_encoding_cols = []
+        onehot_encoding_cols = []
+        frequency_encoding_cols = []
+        
+        for c in categorical_cols:
+            if n_unique[c] == 1: # constant column, can be dropped
+                if c not in drop_cols:
+                    drop_cols.append(c)
+
+            elif n_unique[c] == rows: # id-like column, can be dropped
+                if c not in drop_cols:
+                    drop_cols.append(c)
+
+            elif is_ordinal.get(c, False): # if the column is identified as ordinal, use ordinal encoding
+                ordinal_encoding_cols.append(c)
+
+            elif n_unique[c] >= 50: # high cardinality, use frequency encoding
+                frequency_encoding_cols.append(c)
+
+            elif n_unique[c] >= 15 and n_unique[c] < 50: # medium cardinality, use target encoding
+                target_encoding_cols.append(c)
+
+            else: # low cardinality, use one-hot encoding
+                onehot_encoding_cols.append(c)
+
+
+        state['internal_memory']['target_encoding'] = target_encoding_cols
+        state['internal_memory']['onehot_encoding'] = onehot_encoding_cols
+        state['internal_memory']['ordinal_encoding'] = ordinal_encoding_cols
+        state['internal_memory']['frequency_encoding'] = frequency_encoding_cols
+        state['internal_memory']['drop_cols'] = drop_cols
+
+        return state
 
     def run(
         self,

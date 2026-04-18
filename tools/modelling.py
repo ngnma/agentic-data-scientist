@@ -9,7 +9,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder, OrdinalEncoder
 
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -73,50 +73,79 @@ from sklearn.feature_selection import SelectKBest, f_classif
 #     )
 
 
+
 def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
 
     drop_cols = internal_memory.get("drop_cols",[])
     num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
     cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
-    target_encoding_cols = [c for c in cat_cols if c in internal_memory.get("target_encoding", [])]
-    onehot_encoded_cols = [c for c in cat_cols if c not in target_encoding_cols]
 
-    numeric_transformer = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler(with_mean=True)),
-    ])
+    target_enc_cols = internal_memory.get("target_encoding", [])
+    ordinal_enc_cols = internal_memory.get("ordinal_encoding", [])
+    frequency_enc_cols = internal_memory.get("frequency_encoding", [])
+    onehot_enc_cols = internal_memory.get("onehot_encoding", cat_cols)  # default to all cat_cols if not set
 
-    try:
-        onehot_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    except TypeError:
-        onehot_encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
 
-    onehot_enc_transformer = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", onehot_encoder),
-    ])
+    transformers = []
+    if num_cols:
+        transformers.append((
+            "num",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler(with_mean=True)),
+            ]),
+            num_cols
+        ))
+        print(f"[Preprocessing] Applying numeric transformations to columns: {num_cols}")
 
-    target_enc_transformer = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("target_encoder", TargetEncoder()),
-    ])
+    if onehot_enc_cols:
+        transformers.append((
+            "cat_ohe",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            ]),
+            onehot_enc_cols
+        ))
+        print(f"[Preprocessing] Applying OneHotEncoder to columns: {onehot_enc_cols}")
 
-    transformers = [
-        ("num", numeric_transformer, num_cols),
-    ]
+    if target_enc_cols:
+        transformers.append((
+            "cat_target", 
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("target_encoder", TargetEncoder()),
+            ]), 
+            target_enc_cols
+        ))
+        print(f"[Preprocessing] Applying TargetEncoder to columns: {target_enc_cols}")
 
-    if onehot_encoded_cols:
-        transformers.append(("cat_ohe", onehot_enc_transformer, onehot_encoded_cols))
-        print(f"[Preprocessing] Applying OneHotEncoder to columns: {onehot_encoded_cols}")
+    if frequency_enc_cols:
+        transformers.append((
+            "cat_freq",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("target_encoder", TargetEncoder()), # TargetEncoder used as a proxy for frequency encoding due to lack of native support in scikit-learn.
+            ]),
+            frequency_enc_cols
+        ))
+        print(f"[Preprocessing] Applying Frequency Encoding to columns: {frequency_enc_cols}")  
 
-    if target_encoding_cols:
-        transformers.append(("cat_target", target_enc_transformer, target_encoding_cols))
-        print(f"[Preprocessing] Applying TargetEncoder to columns: {target_encoding_cols}")
+    if ordinal_enc_cols:
+        transformers.append((
+            "cat_ordinal",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("ordinal_encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
+            ]),
+            ordinal_enc_cols
+        ))
+        print(f"[Preprocessing] Applying Ordinal Encoding to columns: {ordinal_enc_cols}")
 
 
     return ColumnTransformer(
         transformers=transformers,
-        remainder="drop",
+        remainder="drop", # Any column that is NOT explicitly listed in transformers will be removed.
     )
 
 def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any, Dict[str, Any]]]:

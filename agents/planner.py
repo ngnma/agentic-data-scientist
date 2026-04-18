@@ -93,11 +93,11 @@ def create_plan(
     # High Cardinality Categoricals
     high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
     if high_card_cats:
-        plan.append("P2A_apply_encoding")
+        plan.append("P2A2_apply_encoding")
     
     # Missing Values
     if max_missing > 20:
-        plan.append("P2A_handle_missing_values")
+        plan.append("P2A1_handle_missing_values")
 
     # High Dimensionality
     if cols > 100 or (rows > 0 and cols / rows > 0.5):
@@ -126,9 +126,3 @@ def create_plan(
 # def select_preprocessing_strategy(...):
 # def estimate_plan_cost(...):  # For cost-aware planning
 
-
-"""
-P2A_apply_encoding
-
-
-"""
