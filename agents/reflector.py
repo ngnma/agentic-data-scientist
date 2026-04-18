@@ -363,6 +363,7 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
     - Feature importance patterns indicating irrelevant features
     """
 
+    # 1. Analyze categorical feature encoding issues
     categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
     n_unique = dataset_profile.get("n_unique_by_col", {})
     rows = dataset_profile['shape']['rows']
@@ -376,7 +377,13 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
         suggestions.append(["P2A3_optimize_categorical_encoding"])
         print("[Reflection] Data quality issue detected: categorical feature issues. -> Consider optimizing encoding")
 
-    # TODO: use P2A4_handle_numeric_outliers
+    # 2. Analyze numeric feature outliers
+    outlier_ratio = dataset_profile.get("outlier_ratio_by_col", {})
+
+    if any(value >= 0.05 for key, value in outlier_ratio.items()):
+        issues.append("data_quality: numeric feature outliers")
+        suggestions.append(["P2A4_handle_numeric_outliers"])
+        print("[Reflection] Data quality issue detected: numeric feature outliers. -> Consider handling numeric outliers")
 
     
 

@@ -306,7 +306,7 @@ class AgenticDataScientist:
         outlier_ratio = state['profile'].get("outlier_ratio_by_col", {})
         drop_cols = state['internal_memory'].get('drop_cols', []) 
 
-        high_outliers = [key for key, value in outlier_ratio.items() if value >= 0.01 and key not in drop_cols]
+        high_outliers = [key for key, value in outlier_ratio.items() if value >= 0.05 and key not in drop_cols]
         low_outliers = [c for c in numerical_cols if c not in high_outliers and c not in drop_cols] 
 
         state['internal_memory']['scale'] = low_outliers
