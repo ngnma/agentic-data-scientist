@@ -56,38 +56,37 @@ def reflect(
 
     # ------------------- Reflection logic starts here
 
-    # # TODO: add a flag, if once significant_tests_succesfull return True, this step should be skipped in next reflection cycles.
-    # if significant_tests_succesfull(evaluation, suggestions):
-    #     print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
+    if significant_tests_succesfull(evaluation, suggestions):
+        print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 
-    #     if baseline_comparison_successful(all_metrics, best_metrics):
-    #         print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
+        if baseline_comparison_successful(all_metrics, best_metrics):
+            print("[Reflection] Baseline comparison successful. Best model significantly outperforms baseline. -> Consider deeper per-class analysis.")
 
-    #         if per_class_analysis_successful(classification_report, issues, suggestions):
-    #             print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
+            if per_class_analysis_successful(classification_report, issues, suggestions):
+                print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
                 
-    #             if not detect_overfitting(best_metrics, issues, suggestions):
-    #                 print("[Reflection] No overfitting detected. -> Check underfitting.")
+                if not detect_overfitting(best_metrics, issues, suggestions):
+                    print("[Reflection] No overfitting detected. -> Check underfitting.")
 
-    #             if not detect_underfitting(best_metrics, issues, suggestions):
-    #                 print("[Reflection] No underfitting detected. -> Check model performance")
+                if not detect_underfitting(best_metrics, issues, suggestions):
+                    print("[Reflection] No underfitting detected. -> Check model performance")
                 
-    #             if acceptable_performance(best_metrics):
-    #                 print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
-    #             else:
-    #                 pass
-    #         else:
-    #             # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
-    #             pass
+                if acceptable_performance(best_metrics):
+                    print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
+                else:
+                    pass
+            else:
+                # Do nothing. per_class_analysis_successful already adds issues and suggestions if needed. Also the print statements in per_class_analysis_successful already print the reason for failure and suggestions.
+                pass
 
-    #     else:
-    #         print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
-    #         # TODO: Go to S4 (data / feature issues)
-    # else:
-    #     print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
-    #     # TODO: Go to S4 (data / feature issues)
+        else:
+            print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
+            # TODO: Go to S4 (data / feature issues)
+    else:
+        print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
+        # TODO: Go to S4 (data / feature issues)
 
-    # # ------------------- Reflection logic ends here
+    # ------------------- Reflection logic ends here
 
 
     
