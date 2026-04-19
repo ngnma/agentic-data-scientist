@@ -54,7 +54,6 @@ def create_plan(
         "P4B_train_models",
         "P5B_evaluate",
         "P6B_reflect",
-        "P7B_write_report",
     ]
 
     # Extract key dataset characteristics

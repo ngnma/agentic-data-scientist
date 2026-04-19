@@ -19,6 +19,77 @@ import numpy as np
 from agents.memory import get_relevant_reflections, prioritize_suggestions_from_memory
 
 
+def _estimate_problem_difficulty(
+    dataset_profile: Dict[str, Any],
+    best_metrics: Dict[str, Any],
+) -> str:
+    rows = dataset_profile.get("shape", {}).get("rows", 0) or 0
+    cols = dataset_profile.get("shape", {}).get("cols", 0) or 0
+    imbalance = float(dataset_profile.get("imbalance_ratio", 1.0) or 1.0)
+    noise = float(dataset_profile.get("noise_ratio", 0.0) or 0.0)
+    missing_pct = dataset_profile.get("missing_pct", {}) or {}
+    missing_max = max(missing_pct.values(), default=0.0)
+    f1_macro = float(best_metrics.get("f1_macro", 0.0) or 0.0)
+
+    difficulty_score = 0
+    if rows < 500:
+        difficulty_score += 1
+    if cols > 100:
+        difficulty_score += 1
+    if imbalance > 3:
+        difficulty_score += 1
+    if noise > 0.2:
+        difficulty_score += 1
+    if missing_max >= 20:
+        difficulty_score += 1
+    if f1_macro < 0.55:
+        difficulty_score += 1
+
+    if difficulty_score >= 4:
+        return "hard"
+    if difficulty_score >= 2:
+        return "medium"
+    return "easy"
+
+
+def _estimate_confidence(
+    issues: List[str],
+    suggestions: List[List[str]],
+    best_metrics: Dict[str, Any],
+    relevant_reflections: List[Dict[str, Any]],
+) -> float:
+    score = 0.5
+
+    if issues:
+        score += 0.1
+    if suggestions:
+        score += 0.1
+
+    f1_macro = float(best_metrics.get("f1_macro", 0.0) or 0.0)
+    train_f1 = float(best_metrics.get("f1_train_macro", 0.0) or 0.0)
+    gap = abs(train_f1 - f1_macro)
+
+    if gap >= 0.15:
+        score += 0.1
+
+    if relevant_reflections:
+        improved = sum(1 for item in relevant_reflections if item.get("outcome", {}).get("improved", False))
+        score += min(0.2, 0.05 * improved)
+
+    return max(0.1, min(0.95, score))
+
+
+def _extract_failed_actions(relevant_reflections: List[Dict[str, Any]]) -> List[str]:
+    failed: List[str] = []
+    for item in relevant_reflections:
+        outcome = item.get("outcome", {}) or {}
+        if not outcome.get("improved", False):
+            for action in item.get("actions_applied", []):
+                if action not in failed:
+                    failed.append(action)
+    return failed
+
+
 def reflect(
     dataset_profile: Dict[str, Any],
     evaluation: Dict[str, Any],
@@ -26,36 +97,16 @@ def reflect(
 ) -> Dict[str, Any]:
     """
     Analyze results and generate reflection with issues and suggestions.
-    
-    This is a basic implementation. Students should extend this significantly.
-    
-    Args:
-        dataset_profile: Dataset characteristics
-        evaluation: Dictionary contains Best model's metrics and all models' metrics, classification report, etc.
-    
-    Returns:
-        Dictionary with:
-            - status: str ("ok" or "needs_attention")
-            - best_model: str (model name)
-            - issues: List[str] (identified problems)
-            - suggestions: List[str] (improvement recommendations)
-            - replan_recommended: bool (should we replan?)
-    
-    TODO for students:
-    - Check for data quality issues
-    - Prioritize suggestions by expected impact
-    - Learn which suggestions work from memory
     """
     reflection_memory = reflection_memory or {}
 
     issues: List[str] = []
     suggestions: List[List[str]] = []
 
-    f1_macro = float(evaluation.get("f1_macro", 0.0))
-    best_metrics = evaluation.get("best_metrics", {})
+    best_metrics = evaluation.get("best_metrics", {}) or {}
     best_model = best_metrics.get("model")
-    all_metrics = evaluation.get("all_metrics", [])
-    classification_report = evaluation.get("classification_report", {})
+    all_metrics = evaluation.get("all_metrics", []) or []
+    classification_report = evaluation.get("classification_report", {}) or {}
 
     skip_data_quality = reflection_memory.get("skip_data_quality", False)
     skip_tuning = reflection_memory.get("skip_tuning", False)
@@ -69,7 +120,6 @@ def reflect(
     )
     skip_per_class_analysis = reflection_memory.get("skip_per_class_analysis", False)
 
-    # ------------------- Reflection logic starts here
     if significant_tests_succesfull(evaluation, suggestions, skip_data_quality):
         print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 
@@ -105,38 +155,172 @@ def reflect(
     )
     suggestions = prioritize_suggestions_from_memory(suggestions, relevant_reflections)
 
-    # ------------------- Reflection logic ends here
+    problem_difficulty = _estimate_problem_difficulty(dataset_profile, best_metrics)
+    confidence = _estimate_confidence(issues, suggestions, best_metrics, relevant_reflections)
+    failed_actions = _extract_failed_actions(relevant_reflections)
 
-    status = "needs_attention" if issues else "ok"
+    target_by_difficulty = {
+        "easy": 0.80,
+        "medium": 0.70,
+        "hard": 0.60,
+    }
+    target_score = target_by_difficulty[problem_difficulty]
 
-    replan_recommended = bool(issues and f1_macro < 0.60)
-    replan_recommended = True  # just for test TODO: CLEANUP
+    history = list(reflection_memory.get("history", []))
+    remaining_replans = int(reflection_memory.get("remaining_replans", 1) or 0)
+    min_expected_gain = float(reflection_memory.get("min_expected_gain", 0.01) or 0.01)
+
+    f1_macro = float(best_metrics.get("f1_macro", 0.0) or 0.0)
+    balanced_accuracy = float(best_metrics.get("balanced_accuracy", 0.0) or 0.0)
+    current_score = max(f1_macro, balanced_accuracy)
+
+    replan_recommended = bool(
+        issues
+        and suggestions
+        and remaining_replans > 0
+        and current_score < target_score
+    )
 
     print(f"[Reflection] Suggestions: {suggestions}")
 
     return {
-        "status": status,
+        "status": "needs_attention" if issues else "ok",
         "best_model": best_model,
         "issues": issues,
         "suggestions": suggestions,
         "replan_recommended": replan_recommended,
+
+        # fields used by should_replan(...)
+        "best_metrics": best_metrics,
+        "confidence": confidence,
+        "problem_difficulty": problem_difficulty,
+        "target_score": target_score,
+        "resource_budget": {
+            "remaining_replans": remaining_replans,
+            "min_expected_gain": min_expected_gain,
+        },
+        "history": history,
+        "failed_actions": failed_actions,
         "memory_matches": [item.get("run_id") for item in relevant_reflections],
+        "memory_matches_details": relevant_reflections,
     }
 
 
 def should_replan(reflection: Dict[str, Any]) -> bool:
     """
     Decide whether to trigger replanning based on reflection.
-    
-    This is a simple policy. Students should implement more sophisticated logic.
-    
-    TODO for students:
-    - Consider multiple factors (performance, confidence, resource budget)
-    - Implement diminishing returns detection
-    - Use memory to avoid repeating failed strategies
-    - Set adaptive thresholds based on problem difficulty
+    Adds debug prints explaining why replanning did NOT happen.
     """
-    return bool(reflection.get("replan_recommended", False))
+
+    if not reflection:
+        print("[Replan] ❌ No reflection available → skip replanning")
+        return False
+
+    if not reflection.get("issues"):
+        print("[Replan] ❌ No issues detected → nothing to fix")
+        return False
+
+    best_metrics = reflection.get("best_metrics", {}) or {}
+    f1_macro = float(best_metrics.get("f1_macro", 0.0) or 0.0)
+    balanced_accuracy = float(best_metrics.get("balanced_accuracy", 0.0) or 0.0)
+    score = max(f1_macro, balanced_accuracy)
+
+    difficulty = str(reflection.get("problem_difficulty", "medium")).lower()
+    target_by_difficulty = {
+        "easy": 0.80,
+        "medium": 0.70,
+        "hard": 0.60,
+    }
+    target_score = float(reflection.get("target_score", target_by_difficulty.get(difficulty, 0.70)))
+
+    recommended = bool(reflection.get("replan_recommended", False))
+
+    suggestions = reflection.get("suggestions", []) or []
+    confidence = float(reflection.get("confidence", 0.5) or 0.5)
+
+    if not suggestions:
+        print("[Replan] ❌ No suggestions available → cannot improve")
+        return False
+
+    budget = reflection.get("resource_budget", {}) or {}
+    remaining_replans = int(budget.get("remaining_replans", 1) or 0)
+    min_expected_gain = float(budget.get("min_expected_gain", 0.01) or 0.01)
+
+    if remaining_replans <= 0:
+        print("[Replan] ❌ Replan budget exhausted → stopping")
+        return False
+
+    # ---------- diminishing returns ----------
+    history = reflection.get("history", []) or []
+    recent_deltas = []
+
+    for item in history[-3:]:
+        outcome = item.get("outcome", {}) or {}
+        delta = float(outcome.get("delta_f1_macro", 0.0) or 0.0)
+        recent_deltas.append(delta)
+
+    avg_recent_gain = sum(recent_deltas) / len(recent_deltas) if recent_deltas else None
+    diminishing_returns = (
+        avg_recent_gain is not None and avg_recent_gain < min_expected_gain
+    )
+
+    if diminishing_returns:
+        print(f"[Replan] ⚠️ Diminishing returns detected → avg_gain={avg_recent_gain:.4f} < {min_expected_gain}")
+
+    # ---------- memory check ----------
+    failed_actions = set(reflection.get("failed_actions", []) or [])
+    candidate_actions = []
+    for group in suggestions:
+        candidate_actions.extend(group)
+
+    if candidate_actions and all(action in failed_actions for action in candidate_actions):
+        print("[Replan] ❌ All candidate actions previously failed → skipping")
+        return False
+
+    memory_matches = reflection.get("memory_matches_details", []) or []
+    negative_memory_hits = 0
+    positive_memory_hits = 0
+
+    for item in memory_matches:
+        outcome = item.get("outcome", {}) or {}
+        if bool(outcome.get("improved", False)):
+            positive_memory_hits += 1
+        else:
+            negative_memory_hits += 1
+
+    memory_is_unfavorable = negative_memory_hits > positive_memory_hits and negative_memory_hits > 0
+
+    if memory_is_unfavorable:
+        print(f"[Replan] ⚠️ Memory unfavorable → {negative_memory_hits} failures vs {positive_memory_hits} successes")
+
+    clearly_under_target = score < (target_score - 0.05)
+    slightly_under_target = score < target_score
+
+    # ---------- STOP condition ----------
+    if memory_is_unfavorable and diminishing_returns:
+        print("[Replan] ❌ Stop: bad memory + diminishing returns → no further replanning")
+        return False
+
+    # ---------- GO conditions ----------
+    if clearly_under_target and confidence >= 0.4 and not diminishing_returns:
+        print("[Replan] ✅ Replan: clearly under target + sufficient confidence")
+        return True
+
+    if recommended and slightly_under_target and confidence >= 0.6 and not memory_is_unfavorable:
+        print("[Replan] ✅ Replan: reflector recommended + moderate confidence")
+        return True
+
+    if recommended and clearly_under_target and remaining_replans > 0 and not diminishing_returns:
+        print("[Replan] ✅ Replan: recommended + clearly under target")
+        return True
+
+    # ---------- FINAL FALLBACK ----------
+    print(
+        "[Replan] ❌ No condition met → skip replanning | "
+        f"score={score:.3f}, target={target_score}, "
+        f"confidence={confidence:.2f}, recommended={recommended}"
+    )
+    return False
 
 
 def apply_replan_strategy(
@@ -151,7 +335,7 @@ def apply_replan_strategy(
         Tuple of:
             - modified_plan
             - modified_profile
-            - actions_applied (the exact actions selected from reflection)
+            - actions_applied
     """
 
     new_plan = list(plan)
@@ -170,13 +354,7 @@ def apply_replan_strategy(
                 break
 
     new_plan.sort()
-
     return new_plan, new_profile, actions_applied
-
-
-# TODO: Add helper functions for reflection
-# def prioritize_suggestions(...):
-# def generate_explanation(...):
 
 
 def baseline_comparison_successful(
@@ -184,14 +362,11 @@ def baseline_comparison_successful(
         best_metrics: Dict[str, Any],
         should_skip: bool = False
     ) -> bool:
-    """Check if best model significantly outperforms dummy baseline."""
-
     if should_skip:
         print("[Reflection] Skipping baseline comparison due to insufficient data quality improvement suggestions to improve model performance.")
         return True
 
     bal_acc = float(best_metrics.get("balanced_accuracy", 0.0))
-
     dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
 
     if dummy is not None:
@@ -207,11 +382,6 @@ def significant_tests_succesfull(
     suggestions: List[List[str]],
     should_skip: bool = False
 ) -> bool:
-    """
-    Return best_model_name if it is significantly better than all other models
-    using the Wilcoxon signed-rank test on cv_f1_scores.
-    Otherwise return None.
-    """
     best_model_name = evaluation.get("best_metrics", {}).get("model")
     all_metrics = evaluation.get("all_metrics", [])
 
@@ -282,10 +452,6 @@ def per_class_analysis_successful(
         suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
-    """
-    Analyze per-class performance and return True if it looks balanced.
-    """
-
     if should_skip:
         print("[Reflection] Skipping per-class performance analysis due to insufficient improvement suggestions to improve model performance.")
         return True
@@ -322,8 +488,7 @@ def per_class_analysis_successful(
         sug.extend(["P8_skip_per_class_analysis"])
         suggestions.append(sug)
         return False
-    else:
-        return True
+    return True
 
 
 def detect_overfitting(
@@ -332,9 +497,6 @@ def detect_overfitting(
         suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
-    """
-    Detect overfitting based on train and test F1 scores.
-    """
     train_f1 = best_metrics.get("f1_train_macro", 0.0)
     macro_f1 = best_metrics.get("f1_macro", 0.0)
 
@@ -357,9 +519,6 @@ def detect_underfitting(
         suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
-    """
-    Detect underfitting based on train and test F1 scores.
-    """
     if should_skip:
         print("[Reflection] Skipping underfitting detection due to insufficient improvement suggestions to handle underfitting.")
         return False
@@ -381,9 +540,6 @@ def acceptable_performance(
         suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
-    """
-    Check if model performance is acceptable based on balanced accuracy and F1 score.
-    """
     if should_skip:
         print("[Reflection] Skipping performance acceptability check due to insufficient improvement suggestions to improve model performance.")
         return True
@@ -392,23 +548,13 @@ def acceptable_performance(
 
     if f1_macro >= 0.70:
         return True
-    else:
-        print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
-        suggestions.append(["P4A_tune_hyperparameters", "P8_skip_tuning"])
-        return False
+
+    print("[Reflection] Model performance is not acceptable. -> Consider hyperparameters tuning.")
+    suggestions.append(["P4A_tune_hyperparameters", "P8_skip_tuning"])
+    return False
 
 
 def detect_data_quality_issues(issues: List[str], suggestions: List[List[str]], dataset_profile, note: str) -> None:
-    """
-    Placeholder for data quality issue detection logic.
-    In a real implementation, this would analyze the dataset profile for issues like:
-    - High missing value percentages
-    - Extreme class imbalance
-    - High cardinality categorical features
-    - Outliers or noisy data
-    - Feature importance patterns indicating irrelevant features
-    """
-
     categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
     n_unique = dataset_profile.get("n_unique_by_col", {})
     rows = dataset_profile["shape"]["rows"]
@@ -424,7 +570,7 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[List[str]], 
 
     outlier_ratio = dataset_profile.get("outlier_ratio_by_col", {})
 
-    if any(value >= 0.05 for key, value in outlier_ratio.items()):
+    if any(value >= 0.05 for value in outlier_ratio.values()):
         issues.append("data_quality: numeric feature outliers")
         suggestions.append(["P2A4_handle_numerical_outliers", "P8_skip_data_quality_step"])
         print(f"[Reflection] {note}: Data quality issue detected: numeric feature outliers. -> Consider handling numeric outliers")

@@ -166,10 +166,17 @@ class AgenticDataScientist:
         return state
 
     def _step_reflect(self, state):
+        remaining_replans = max(0, self.ctx.max_replans - self.state.get("replan_count", 0))
+
         reflection_context = self.memory.build_reflection_context(
             state["fp"],
-            runtime_flags=state["internal_memory"].get("reflection_memory", {}),
+            runtime_flags={
+                **state["internal_memory"].get("reflection_memory", {}),
+                "remaining_replans": remaining_replans,
+                "min_expected_gain": 0.01,
+            },
         )
+
         state["reflection"] = reflect(
             dataset_profile=state["profile"],
             evaluation=state["eval_payload"],
@@ -571,6 +578,9 @@ class AgenticDataScientist:
             self.state['plan'] = new_plan
             self.state['profile'] = new_profile
             self.log(f"Re-Plan: {self.state['plan']}")
+
+        # write final report with populated history
+        self._step_write_report(self.state)
 
         # Final log and return the directory containing run outputs
         self.log(f"Done. Outputs saved to: {self.ctx.output_dir}")
