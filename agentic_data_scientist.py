@@ -254,6 +254,7 @@ class AgenticDataScientist:
         if not state['internal_memory'].get('search_space'):
             state['internal_memory']['search_space'] = 'normal'
         self.log(f"Applying hyperparameter tuning with search space: {state['internal_memory']['search_space']}")
+        return state
 
     def _step_lower_decision_threshold(self, state):
         if state['profile']['n_classes'] > 2:

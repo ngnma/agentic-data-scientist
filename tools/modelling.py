@@ -135,6 +135,7 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         transformers.append((
             "cat_ohe",
             Pipeline(steps=[
+                ("to_str", FunctionTransformer(lambda x: x.astype(str))),
                 ("imputer", SimpleImputer(strategy="most_frequent")),
                 ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
             ]),
@@ -146,6 +147,7 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         transformers.append((
             "cat_target",
             Pipeline(steps=[
+                ("to_str", FunctionTransformer(lambda x: x.astype(str))),
                 ("imputer", SimpleImputer(strategy="most_frequent")),
                 ("target_encoder", TargetEncoder()),
             ]),
@@ -157,6 +159,7 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         transformers.append((
             "cat_freq",
             Pipeline(steps=[
+                ("to_str", FunctionTransformer(lambda x: x.astype(str))),
                 ("imputer", SimpleImputer(strategy="most_frequent")),
                 ("target_encoder", TargetEncoder()),  # proxy for frequency encoding
             ]),
@@ -168,6 +171,7 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         transformers.append((
             "cat_ordinal",
             Pipeline(steps=[
+                ("to_str", FunctionTransformer(lambda x: x.astype(str))),
                 ("imputer", SimpleImputer(strategy="most_frequent")),
                 ("ordinal_encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
             ]),
