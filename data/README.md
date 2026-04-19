@@ -70,7 +70,7 @@ This folder contains a collection of datasets used for testing and evaluating th
 
 ## 🚢 Titanic Dataset
 - **Source:** https://www.kaggle.com/datasets/yasserh/titanic-dataset  
-- **Description:** Passenger data from the Titanic disaster including age, gender, class, and survival outcome. :contentReference[oaicite:0]{index=0}  
+- **Description:** Passenger data from the Titanic disaster including age, gender, class, and survival outcome. 
 - **Summary:** Classic binary classification dataset widely used in ML.  
   Useful for learning preprocessing, feature engineering, and model evaluation.
 
