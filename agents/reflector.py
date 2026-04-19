@@ -266,7 +266,7 @@ def significant_tests_succesfull(
         if p_value >= 0.05:
             return False
         
-    suggestions.append(['P3A2_choose_best_model'])
+    suggestions.append(['P3A3_choose_best_model'])
     return True
 
 def per_class_analysis_successful(
@@ -316,7 +316,7 @@ def detect_overfitting(best_metrics: Dict[str, Any], issues: List[str], suggesti
     if train_f1 >= 0.7 and (train_f1 - macro_f1) >= 0.15:
         print("[Reflection] Overfitting detected. -> Consider regularization or simpler models.")
         issues.append("overfitting")
-        suggestions.append(["P3A_decrease_model_complexity", "P3A_feature_selection", "P3A_simpler_models"])
+        suggestions.append(["P3A6_decrease_model_complexity", "P3A_feature_selection", "P3A2_simpler_models"])
         return True
     
     return False
@@ -331,7 +331,7 @@ def detect_underfitting(best_metrics: Dict[str, Any], issues: List[str], suggest
     if train_f1 < 0.7 and macro_f1 < 0.7:
         print("[Reflection] Underfitting detected. -> Consider more complex models or removing regularization.")
         issues.append("underfitting")
-        suggestions.append(["P3A_increase_model_complexity"])
+        suggestions.append(["P3A5_increase_model_complexity"])
         return True
     
     return False
@@ -383,7 +383,7 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
 
     if any(value >= 0.05 for key, value in outlier_ratio.items()):
         issues.append("data_quality: numeric feature outliers")
-        suggestions.append(["P2A4_handle_numeric_outliers"])
+        suggestions.append(["P2A4_handle_numerical_outliers"])
         print("[Reflection] Data quality issue detected: numeric feature outliers. -> Consider handling numeric outliers")
 
     # 3. Analyze skewness of numeric features

@@ -77,12 +77,12 @@ def create_plan(
     
     # Small Datasets
     if rows < 100:
-        plan.append("P3A_regularization")
+        plan.append("P3A4_regularization")
     
     # High Cardinality Categoricals
     high_card_cats = [c for c in categorical_cols if n_unique[c] > 50]
     if high_card_cats:
-        plan.append("P2A2_apply_encoding")
+        plan.append("P2A2_apply_categorical_encoding")
     
     # Missing Values
     if max_missing > 20:
@@ -94,7 +94,7 @@ def create_plan(
 
     # Noisy Data
     if noise_ratio> 0.3:
-        plan.append("P3A_regularization")
+        plan.append("P3A4_regularization")
     
     # skewness (Normalization)
     if max_skewness >= 0.5:

@@ -65,22 +65,22 @@ class AgenticDataScientist:
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
             "P2A0_handle_missing_values": self._step_handle_missing_values,
-            "P2A2_apply_encoding": self._step_apply_encoding,
+            "P2A2_apply_categorical_encoding": self._step_apply_categorical_encoding,
             "P2A3_optimize_categorical_encoding": self._step_optimize_categorical_encoding,
-            "P2A4_handle_numeric_outliers": self._step_numeric_outlier_handling,
+            "P2A4_handle_numerical_outliers": self._step_numerical_outlier_handling,
             "P2A5_handle_skewness": self._step_handle_skewness,
             "P2A6_optimize_skewness": self._step_optimize_skewness,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A0_select_basic_models": self._step_select_basic_models,
             "P3A1_select_additional_models": self._step_select_additional_models,
-            "P3A2_choose_best_model": self._step_choose_best_model,
-            "P3A_regularization": self._step_apply_regularization,
+            "P3A2_simpler_models": self.step_select_simpler_models, # TODO: need refactor
+            "P3A3_choose_best_model": self._step_choose_best_model,
+            "P3A4_regularization": self._step_apply_regularization,
+            "P3A5_increase_model_complexity": self.step_increase_model_complexity,
+            "P3A6_decrease_model_complexity": self.step_decrease_model_complexity,
             "P3A_imb_class_weight": self._step_imb_class_weight,
             "P3A_feature_selection": self._step_feature_selection,
             "P3A_SMOTE": self._step_apply_smote,
-            "P3A_simpler_models": self.step_select_simpler_models,
-            "P3A_decrease_model_complexity": self.step_decrease_model_complexity,
-            "P3A_increase_model_complexity": self.step_increase_model_complexity,
             "P3B_select_models": self._step_select_models,
             "P4A_tune_hyperparameters": self._step_tune_hyperparameters,
             "P4A_Lower_decision_threshold": self._step_lower_decision_threshold,
@@ -147,8 +147,8 @@ class AgenticDataScientist:
             test_size=self.ctx.test_size,
             output_dir=self.ctx.output_dir,
             internal_memory = state['internal_memory'],
-            feature_selector=state['feature_selector'] if 'feature_selector' in state else None,
-            smote=state['smote'] if 'smote' in state else None,
+            feature_selector=state['internal_memory']['feature_selector'] if 'feature_selector' in state else None,
+            smote=state['internal_memory']['smote'] if 'smote' in state else None,
             verbose=self.verbose,
         )
         return state
@@ -194,12 +194,12 @@ class AgenticDataScientist:
         return state
     
     def _step_feature_selection(self, state):
-        state['feature_selector'] = feature_selection()
+        state['internal_memory']['feature_selector'] = feature_selection()
         self.log("Reflection suggests applying feature selection to reduce dimensionality and improve model performance.")
         return state
     
     def _step_apply_smote(self, state):
-        state['smote'] = apply_smote(self.ctx.seed)
+        state['internal_memory']['smote'] = apply_smote(self.ctx.seed)
         self.log("Reflection suggests applying SMOTE to handle class imbalance by generating synthetic samples for the minority class.")
         return state
     
@@ -257,7 +257,7 @@ class AgenticDataScientist:
         
     def _step_choose_best_model(self, state):
         best_model = state['eval_payload']['best_metrics']['model']
-        state['internal_memory']['candidates'] = [best_model]
+        state['internal_memory']['candidates_name'] = [best_model]
         self.log(f"Reflection suggests prioritizing the best performing model: {state['internal_memory']['candidates']} and removing other candidates.")
         return state
     
@@ -267,7 +267,7 @@ class AgenticDataScientist:
         self.log(f"Planner suggests drop columns with >20% missing values: {high_missing_cols}")
         return state
     
-    def _step_apply_encoding(self, state):
+    def _step_apply_categorical_encoding(self, state):
         categorical_cols = state['profile'].get("feature_types", {}).get("categorical", [])
         n_unique = state['profile'].get("n_unique_by_col", {})
         drop_cols = state['internal_memory'].get('drop_cols', [])
@@ -323,7 +323,7 @@ class AgenticDataScientist:
 
         return state
     
-    def _step_numeric_outlier_handling(self, state):
+    def _step_numerical_outlier_handling(self, state):
         numerical_cols = state['profile'].get("feature_types", {}).get("numeric", [])
         outlier_ratio = state['profile'].get("outlier_ratio_by_col", {})
         drop_cols = state['internal_memory'].get('drop_cols', []) 
