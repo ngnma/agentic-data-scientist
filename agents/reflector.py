@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Tuple, Optional
 from scipy.stats import wilcoxon
 import numpy as np
 
+from agents.memory import get_relevant_reflections, prioritize_suggestions_from_memory
+
 
 def reflect(
     dataset_profile: Dict[str, Any],
@@ -44,21 +46,28 @@ def reflect(
     - Prioritize suggestions by expected impact
     - Learn which suggestions work from memory
     """
-    
-        
+    reflection_memory = reflection_memory or {}
+
     issues: List[str] = []
-    suggestions: List[str] = []
+    suggestions: List[List[str]] = []
 
     f1_macro = float(evaluation.get("f1_macro", 0.0))
-    best_metrics = evaluation.get('best_metrics')
+    best_metrics = evaluation.get("best_metrics", {})
     best_model = best_metrics.get("model")
     all_metrics = evaluation.get("all_metrics", [])
     classification_report = evaluation.get("classification_report", {})
-    skip_data_quality = reflection_memory.get('skip_data_quality', False)
-    skip_tuning = reflection_memory.get('skip_tuning', False)
-    skip_handle_overfitting = reflection_memory.get('skip_handle_overfitting', False)
-    skip_handle_underfitting = reflection_memory.get('skip_handle_underfitting', False)
-    skip_per_class_analysis = reflection_memory.get('skip_per_class_analysis', False)
+
+    skip_data_quality = reflection_memory.get("skip_data_quality", False)
+    skip_tuning = reflection_memory.get("skip_tuning", False)
+    skip_handle_overfitting = reflection_memory.get(
+        "skip_handle_overfitting",
+        reflection_memory.get("skip_overfitting", False),
+    )
+    skip_handle_underfitting = reflection_memory.get(
+        "skip_handle_underfitting",
+        reflection_memory.get("skip_underfitting", False),
+    )
+    skip_per_class_analysis = reflection_memory.get("skip_per_class_analysis", False)
 
     # ------------------- Reflection logic starts here
     if significant_tests_succesfull(evaluation, suggestions, skip_data_quality):
@@ -69,42 +78,49 @@ def reflect(
 
             if per_class_analysis_successful(classification_report, issues, suggestions, skip_per_class_analysis):
                 print("[Reflection] Per-class performance successful. -> Consider model optimization and tuning.")
-                
+
                 if not detect_overfitting(best_metrics, issues, suggestions, skip_handle_overfitting):
                     print("[Reflection] No overfitting detected. -> Check underfitting.")
 
                 if not detect_underfitting(best_metrics, issues, suggestions, skip_handle_underfitting):
                     print("[Reflection] No underfitting detected. -> Check model performance")
-                
+
                 if acceptable_performance(best_metrics, suggestions, skip_tuning):
-                    print("[Reflection] Model performance is acceptable. -> Finish.") # exit the reflect
+                    print("[Reflection] Model performance is acceptable. -> Finish.")
                 else:
                     print("[Reflection] Model performance is not acceptable. -> not implemented.")
         else:
             print("[Reflection] Baseline comparison failed. Best model does not significantly outperform baseline. -> Consider data quality or feature issues.")
             detect_data_quality_issues(issues, suggestions, dataset_profile, note="Baseline comparison failed.")
     else:
-        print(f"[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
+        print("[Reflection] Statistical tests failed. No significant differences between models. -> Consider data quality or feature issues.")
         detect_data_quality_issues(issues, suggestions, dataset_profile, note="Statistical tests failed.")
+
+    relevant_reflections = get_relevant_reflections(
+        reflection_memory=reflection_memory,
+        issues=issues,
+        dataset_profile=dataset_profile,
+        best_model=best_model,
+        top_k=3,
+    )
+    suggestions = prioritize_suggestions_from_memory(suggestions, relevant_reflections)
 
     # ------------------- Reflection logic ends here
 
-    # Determine status
     status = "needs_attention" if issues else "ok"
-    
-    # Simple replanning trigger
-    # TODO: Make this more sophisticated
+
     replan_recommended = bool(issues and f1_macro < 0.60)
-    replan_recommended = True # just for test TODO: CLEANUP
+    replan_recommended = True  # just for test TODO: CLEANUP
 
     print(f"[Reflection] Suggestions: {suggestions}")
-    
+
     return {
         "status": status,
         "best_model": best_model,
         "issues": issues,
         "suggestions": suggestions,
         "replan_recommended": replan_recommended,
+        "memory_matches": [item.get("run_id") for item in relevant_reflections],
     }
 
 
@@ -127,46 +143,35 @@ def apply_replan_strategy(
     plan: List[str],
     dataset_profile: Dict[str, Any],
     reflection: Dict[str, Any],
-) -> Tuple[List[str], Dict[str, Any]]:
+) -> Tuple[List[str], Dict[str, Any], List[str]]:
     """
     Modify the plan and dataset profile based on reflection.
-    
-    Args:
-        plan: Current execution plan
-        dataset_profile: Current dataset profile
-        reflection: Reflection results
-    
+
     Returns:
-        Tuple of (modified_plan, modified_profile)
-    
-    TODO for students:
-    - Implement specific strategies for specific issues
-    - Add preprocessing steps based on identified problems
-    - Modify model selection based on performance patterns
-    - Adjust hyperparameters
-    - Try ensemble methods
-    - Implement different replan strategies (aggressive, conservative)
+        Tuple of:
+            - modified_plan
+            - modified_profile
+            - actions_applied (the exact actions selected from reflection)
     """
-    
-    # Copy to avoid modifying originals
+
     new_plan = list(plan)
     new_profile = dict(dataset_profile)
+    actions_applied: List[str] = []
 
-    # add suggestions to the plan
     suggestions_list = reflection.get("suggestions", [])
+    planned = set(new_plan)
 
     for suggestion_list in suggestions_list:
         for suggestion in suggestion_list:
-            if suggestion not in(new_plan):
+            if suggestion not in planned:
                 new_plan.append(suggestion)
+                actions_applied.append(suggestion)
+                planned.add(suggestion)
                 break
 
-    # remove plan dupplicates
-    # plan = list(set(plan))
-    # sort new_plan alfabetically (P1A, P1B, P2A, P2B, etc.) to ensure consistent execution order
     new_plan.sort()
-    
-    return new_plan, new_profile
+
+    return new_plan, new_profile, actions_applied
 
 
 # TODO: Add helper functions for reflection
@@ -174,9 +179,8 @@ def apply_replan_strategy(
 # def generate_explanation(...):
 
 
-
 def baseline_comparison_successful(
-        all_metrics: List[Dict[str, Any]], 
+        all_metrics: List[Dict[str, Any]],
         best_metrics: Dict[str, Any],
         should_skip: bool = False
     ) -> bool:
@@ -189,7 +193,7 @@ def baseline_comparison_successful(
     bal_acc = float(best_metrics.get("balanced_accuracy", 0.0))
 
     dummy = next((m for m in all_metrics if "Dummy" in m.get("model", "")), None)
-    
+
     if dummy is not None:
         dummy_ba = float(dummy.get("balanced_accuracy", 0.0))
         improvement = bal_acc - dummy_ba
@@ -197,9 +201,10 @@ def baseline_comparison_successful(
             return True
     return False
 
+
 def significant_tests_succesfull(
     evaluation: Dict[str, Any],
-    suggestions: List[str],
+    suggestions: List[List[str]],
     should_skip: bool = False
 ) -> bool:
     """
@@ -207,17 +212,17 @@ def significant_tests_succesfull(
     using the Wilcoxon signed-rank test on cv_f1_scores.
     Otherwise return None.
     """
-    best_model_name = evaluation.get("best_metrics").get("model")
+    best_model_name = evaluation.get("best_metrics", {}).get("model")
     all_metrics = evaluation.get("all_metrics", [])
 
     if should_skip:
         print("[Reflection] Skipping significant testing due to insufficient data quality improvement suggestions to improve model performance.")
-        suggestions.append(['P3A3_choose_best_model'])
+        suggestions.append(["P3A3_choose_best_model"])
         return True
 
     if not all_metrics:
         return False
-    
+
     if len(all_metrics) < 2:
         return True
 
@@ -248,36 +253,33 @@ def significant_tests_succesfull(
 
         other_scores = np.asarray(other_scores_list, dtype=float)
 
-        # Wilcoxon requires paired samples with equal length
         if len(best_scores) != len(other_scores):
             return False
 
-        # Best model must also have a higher mean score
         if best_scores.mean() <= other_scores.mean():
             return False
 
         diffs = best_scores - other_scores
 
-        # No difference -> not significantly better
         if np.allclose(diffs, 0.0):
             return False
 
         try:
-            # one-sided test: best model > other model
             _, p_value = wilcoxon(diffs, alternative="greater")
         except ValueError:
             return False
 
         if p_value >= 0.05:
             return False
-        
-    suggestions.append(['P3A3_choose_best_model'])
+
+    suggestions.append(["P3A3_choose_best_model"])
     return True
 
+
 def per_class_analysis_successful(
-        classification_report: Dict[str, Any], 
-        issues: List[str], 
-        suggestions: List[str],
+        classification_report: Dict[str, Any],
+        issues: List[str],
+        suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
     """
@@ -288,22 +290,22 @@ def per_class_analysis_successful(
         print("[Reflection] Skipping per-class performance analysis due to insufficient improvement suggestions to improve model performance.")
         return True
 
-    # Extract per-class metrics
     class_f1 = [v["f1-score"] for k, v in classification_report.items() if k.startswith("class_")]
     class_precision = [v["precision"] for k, v in classification_report.items() if k.startswith("class_")]
     class_recall = [v["recall"] for k, v in classification_report.items() if k.startswith("class_")]
 
-    change = False
-    sug = []
+    if not class_f1:
+        return True
 
-    # 1. Analyze class imbalance impact on performance
+    change = False
+    sug: List[str] = []
+
     if max(class_f1) - min(class_f1) > 0.20:
         issues.append("class imbalance")
-        sug.extend(['P3A_imb_class_weight','P3A_SMOTE'])
+        sug.extend(["P3A_imb_class_weight", "P3A_SMOTE"])
         print("[Reflection] Per-class performance fails due to class imbalance detected. -> Consider class_weight or SMOTE.")
         change = True
-    
-    # 2. Analyze precision-recall tradeoff for each class
+
     if any(class_precision[i] > 0.85 and class_recall[i] < 0.60 for i in range(len(class_precision))):
         issues.append("High false negatives.")
         sug.extend(["P4A_Lower_decision_threshold"])
@@ -317,16 +319,17 @@ def per_class_analysis_successful(
         change = True
 
     if change:
-        sug.extend(['P8_skip_per_class_analysis'])
+        sug.extend(["P8_skip_per_class_analysis"])
         suggestions.append(sug)
         return False
     else:
         return True
 
+
 def detect_overfitting(
-        best_metrics: Dict[str, Any], 
-        issues: List[str], 
-        suggestions: List[str], 
+        best_metrics: Dict[str, Any],
+        issues: List[str],
+        suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
     """
@@ -344,13 +347,14 @@ def detect_overfitting(
         issues.append("overfitting")
         suggestions.append(["P3A6_decrease_model_complexity", "P3A_feature_selection", "P3A2_simpler_models", "P8_skip_handle_overfirring"])
         return True
-    
+
     return False
 
+
 def detect_underfitting(
-        best_metrics: Dict[str, Any], 
-        issues: List[str], 
-        suggestions: List[str],
+        best_metrics: Dict[str, Any],
+        issues: List[str],
+        suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
     """
@@ -359,7 +363,7 @@ def detect_underfitting(
     if should_skip:
         print("[Reflection] Skipping underfitting detection due to insufficient improvement suggestions to handle underfitting.")
         return False
-    
+
     train_f1 = best_metrics.get("f1_train_macro", 0.0)
     macro_f1 = best_metrics.get("f1_macro", 0.0)
 
@@ -368,12 +372,13 @@ def detect_underfitting(
         issues.append("underfitting")
         suggestions.append(["P3A5_increase_model_complexity", "P8_skip_handle_underfirring"])
         return True
-    
+
     return False
 
+
 def acceptable_performance(
-        best_metrics: Dict[str, Any], 
-        suggestions,
+        best_metrics: Dict[str, Any],
+        suggestions: List[List[str]],
         should_skip: bool = False
     ) -> bool:
     """
@@ -382,7 +387,7 @@ def acceptable_performance(
     if should_skip:
         print("[Reflection] Skipping performance acceptability check due to insufficient improvement suggestions to improve model performance.")
         return True
-    
+
     f1_macro = float(best_metrics.get("f1_macro", 0.0))
 
     if f1_macro >= 0.70:
@@ -392,7 +397,8 @@ def acceptable_performance(
         suggestions.append(["P4A_tune_hyperparameters", "P8_skip_tuning"])
         return False
 
-def detect_data_quality_issues(issues: List[str], suggestions: List[str], dataset_profile, note: str) -> None:
+
+def detect_data_quality_issues(issues: List[str], suggestions: List[List[str]], dataset_profile, note: str) -> None:
     """
     Placeholder for data quality issue detection logic.
     In a real implementation, this would analyze the dataset profile for issues like:
@@ -403,11 +409,9 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
     - Feature importance patterns indicating irrelevant features
     """
 
-    # 1. Analyze categorical feature encoding issues
     categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
     n_unique = dataset_profile.get("n_unique_by_col", {})
-    rows = dataset_profile['shape']['rows']
-
+    rows = dataset_profile["shape"]["rows"]
 
     has_medium_cardinal_col = any(n_unique[c] > 15 for c in categorical_cols)
     has_constant_col = any(n_unique[c] == 1 for c in categorical_cols)
@@ -418,7 +422,6 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
         suggestions.append(["P2A3_optimize_categorical_encoding", "P8_skip_data_quality_step"])
         print(f"[Reflection] {note}: Data quality issue detected: categorical feature issues. -> Consider optimizing encoding")
 
-    # 2. Analyze numeric feature outliers
     outlier_ratio = dataset_profile.get("outlier_ratio_by_col", {})
 
     if any(value >= 0.05 for key, value in outlier_ratio.items()):
@@ -426,12 +429,9 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
         suggestions.append(["P2A4_handle_numerical_outliers", "P8_skip_data_quality_step"])
         print(f"[Reflection] {note}: Data quality issue detected: numeric feature outliers. -> Consider handling numeric outliers")
 
-    # 3. Analyze skewness of numeric features
     max_skewness = max(dataset_profile.get("skewness_by_col", {}).values(), default=0)
 
     if max_skewness >= 1:
         issues.append("data_quality: skewed numeric features")
         suggestions.append(["P2A6_optimize_skewness", "P8_skip_data_quality_step"])
         print(f"[Reflection] {note}: Data quality issue detected: skewed numeric features. -> Consider optimizing skewness")
-
-    

@@ -14,7 +14,7 @@ import pandas as pd  # type: ignore
 # Agent components and tooling used by the orchestrator
 from agents.planner import create_plan
 from agents.reflector import reflect, should_replan, apply_replan_strategy
-from agents.memory import JSONMemory
+from agents.memory import JSONMemory, build_reflection_entry
 from tools.data_profiler import profile_dataset, infer_target_column, dataset_fingerprint
 from tools.modelling import build_preprocessor, select_models, train_models, feature_selection, apply_smote
 from tools.evaluation import evaluate_best, write_markdown_report, save_json
@@ -62,6 +62,7 @@ class AgenticDataScientist:
         self.state: Dict[str, Any] = {}
         self.state['internal_memory'] = {}
         self.state['internal_memory'].setdefault('reflection_memory', {})
+        self.state['internal_memory'].setdefault('pending_reflection', None)
 
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
@@ -153,7 +154,7 @@ class AgenticDataScientist:
             seed=self.ctx.seed,
             test_size=self.ctx.test_size,
             output_dir=self.ctx.output_dir,
-            internal_memory = state['internal_memory'],
+            internal_memory=state['internal_memory'],
             feature_selector=state['internal_memory']['feature_selector'] if 'feature_selector' in state else None,
             smote=state['internal_memory']['smote'] if 'smote' in state else None,
             verbose=self.verbose,
@@ -165,10 +166,14 @@ class AgenticDataScientist:
         return state
 
     def _step_reflect(self, state):
+        reflection_context = self.memory.build_reflection_context(
+            state["fp"],
+            runtime_flags=state["internal_memory"].get("reflection_memory", {}),
+        )
         state["reflection"] = reflect(
             dataset_profile=state["profile"],
             evaluation=state["eval_payload"],
-            reflection_memory=state['internal_memory']['reflection_memory']
+            reflection_memory=reflection_context,
         )
         return state
     
@@ -268,7 +273,7 @@ class AgenticDataScientist:
         return state
     
     def _step_handle_missing_values(self, state):
-        high_missing_cols = [key for key, value in state['profile'].get('missing_pct',{}).items() if value >= 20]
+        high_missing_cols = [key for key, value in state['profile'].get('missing_pct', {}).items() if value >= 20]
         state['internal_memory']['drop_cols'] = high_missing_cols
         self.log(f"Planner suggests drop columns with >20% missing values: {high_missing_cols}")
         return state
@@ -293,33 +298,32 @@ class AgenticDataScientist:
         is_ordinal = state['profile'].get("is_ordinal", {})
         rows = state['profile']['shape']['rows']
 
-        drop_cols = state['internal_memory'].get('drop_cols', []) # start with any columns already marked for dropping (e.g. high missing)
-        ordinal_encoding_cols = [] 
+        drop_cols = state['internal_memory'].get('drop_cols', [])  # start with any columns already marked for dropping (e.g. high missing)
+        ordinal_encoding_cols = []
         target_encoding_cols = []
         onehot_encoding_cols = []
         frequency_encoding_cols = []
         
         for c in categorical_cols:
-            if n_unique[c] == 1: # constant column, can be dropped
+            if n_unique[c] == 1:  # constant column, can be dropped
                 if c not in drop_cols:
                     drop_cols.append(c)
 
-            elif n_unique[c] == rows: # id-like column, can be dropped
+            elif n_unique[c] == rows:  # id-like column, can be dropped
                 if c not in drop_cols:
                     drop_cols.append(c)
 
-            elif is_ordinal.get(c, False): # if the column is identified as ordinal, use ordinal encoding
+            elif is_ordinal.get(c, False):  # if the column is identified as ordinal, use ordinal encoding
                 ordinal_encoding_cols.append(c)
 
-            elif n_unique[c] >= 50: # high cardinality, use frequency encoding
+            elif n_unique[c] >= 50:  # high cardinality, use frequency encoding
                 frequency_encoding_cols.append(c)
 
-            elif n_unique[c] >= 15 and n_unique[c] < 50: # medium cardinality, use target encoding
+            elif n_unique[c] >= 15 and n_unique[c] < 50:  # medium cardinality, use target encoding
                 target_encoding_cols.append(c)
 
-            else: # low cardinality, use one-hot encoding
+            else:  # low cardinality, use one-hot encoding
                 onehot_encoding_cols.append(c)
-
 
         state['internal_memory']['target_encoding'] = target_encoding_cols
         state['internal_memory']['onehot_encoding'] = onehot_encoding_cols
@@ -332,10 +336,10 @@ class AgenticDataScientist:
     def _step_numerical_outlier_handling(self, state):
         numerical_cols = state['profile'].get("feature_types", {}).get("numeric", [])
         outlier_ratio = state['profile'].get("outlier_ratio_by_col", {})
-        drop_cols = state['internal_memory'].get('drop_cols', []) 
+        drop_cols = state['internal_memory'].get('drop_cols', [])
 
         high_outliers = [key for key, value in outlier_ratio.items() if value >= 0.05 and key not in drop_cols]
-        low_outliers = [c for c in numerical_cols if c not in high_outliers and c not in drop_cols] 
+        low_outliers = [c for c in numerical_cols if c not in high_outliers and c not in drop_cols]
 
         state['internal_memory']['scale'] = low_outliers
         state['internal_memory']['clip_and_scale'] = high_outliers
@@ -394,9 +398,35 @@ class AgenticDataScientist:
         state['internal_memory']['reflection_memory']['skip_per_class_analysis'] = True
         self.log("Planner suggests skipping per-class performance analysis related steps based on reflection insights.")
         return state
-        
 
-       
+    def _store_pending_reflection_outcome(self, state: Dict[str, Any]) -> None:
+        pending = state["internal_memory"].get("pending_reflection")
+        if not pending:
+            return
+
+        entry = build_reflection_entry(
+            run_id=pending["run_id"],
+            dataset_profile=state["profile"],
+            best_metrics=pending["before_metrics"],
+            reflection=pending["reflection"],
+            actions_applied=pending.get("actions_applied", []),
+            before_metrics=pending.get("before_metrics"),
+            after_metrics=state["eval_payload"].get("best_metrics", {}),
+        )
+        self.memory.store_reflection(state["fp"], entry)
+        state["internal_memory"]["pending_reflection"] = None
+
+    def _store_terminal_reflection(self, state: Dict[str, Any]) -> None:
+        entry = build_reflection_entry(
+            run_id=self.ctx.run_id,
+            dataset_profile=state["profile"],
+            best_metrics=state["eval_payload"].get("best_metrics", {}),
+            reflection=state.get("reflection", {}),
+            actions_applied=[],
+            before_metrics=state["eval_payload"].get("best_metrics", {}),
+            after_metrics=state["eval_payload"].get("best_metrics", {}),
+        )
+        self.memory.store_reflection(state["fp"], entry)
 
     def run(
         self,
@@ -437,6 +467,7 @@ class AgenticDataScientist:
         )
         # Internal state used to track replanning attempts
         self.state['replan_count'] = 0
+        self.state['target'] = self.ctx.target
 
         # Load dataset into memory
         self.state['df'] = self.load_data(data_path)
@@ -468,7 +499,7 @@ class AgenticDataScientist:
         self.state['history'] = {}
 
         while True:
-            state = self.state 
+            state = self.state
 
             for step_name in state['plan']:
                 if step_name not in self.step_registry:
@@ -482,9 +513,12 @@ class AgenticDataScientist:
                     state = step_fn(state)
                 except Exception as e:
                     print(f"Step failed: {step_name} → {e}")
-                    raise 
+                    raise
 
-            self.state = state 
+            self.state = state
+
+            # Finalize the previous reflection after the new evaluation is available
+            self._store_pending_reflection_outcome(self.state)
 
             # Log iteration info, including plan, profile, evaluation results, reflection, and replan decision
             iter_info = {
@@ -499,40 +533,45 @@ class AgenticDataScientist:
             }
             self.state['history'][f'iter_{self.state["replan_count"]}'] = iter_info
 
-            # Update the memory store with outcomes from this run
+            reflection_store = self.memory.get_reflection_memory(self.state['fp'])
             self.memory.upsert_dataset_record(self.state['fp'], {
                 "last_seen": now_iso(),
                 "target": self.ctx.target,
                 "shape": self.state['profile']["shape"],
                 "best_model": self.state['eval_payload']["best_metrics"]["model"],
                 "best_metrics": self.state['eval_payload']["best_metrics"],
+                "reflection_memory": reflection_store,
             })
 
-            # Decide whether the agent should attempt to re-plan and re-run
             if not should_replan(self.state['reflection']):
-                # No replan suggested — finish the run
+                self._store_terminal_reflection(self.state)
                 break
 
-            # If we've already replanned the allowed number of times, stop
             if self.state["replan_count"] >= self.ctx.max_replans:
                 self.log(f"Replan suggested, but max_replans reached:{self.ctx.max_replans}. Stopping.")
+                self._store_terminal_reflection(self.state)
                 break
-           
-            # Otherwise, increment replan counter and apply the replan strategy
+
             self.state["replan_count"] += 1
             self.log(f"Replanning attempt #{self.state['replan_count']}...")
 
-            # apply_replan_strategy returns an updated (plan, profile) pair
-            self.state['plan'], self.state['profile'] = apply_replan_strategy(
+            new_plan, new_profile, actions_applied = apply_replan_strategy(
                 self.state['plan'],
                 self.state['profile'],
                 self.state['reflection']
             )
+
+            self.state['internal_memory']['pending_reflection'] = {
+                "run_id": self.ctx.run_id,
+                "reflection": copy.deepcopy(self.state['reflection']),
+                "actions_applied": actions_applied,
+                "before_metrics": copy.deepcopy(self.state['eval_payload']["best_metrics"]),
+            }
+
+            self.state['plan'] = new_plan
+            self.state['profile'] = new_profile
             self.log(f"Re-Plan: {self.state['plan']}")
 
         # Final log and return the directory containing run outputs
         self.log(f"Done. Outputs saved to: {self.ctx.output_dir}")
         return self.ctx.output_dir
-    
-
-
