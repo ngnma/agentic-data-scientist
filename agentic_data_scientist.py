@@ -109,12 +109,6 @@ class AgenticDataScientist:
         df = pd.read_csv(path)
         self.log(f"Loaded {df.shape[0]} rows × {df.shape[1]} cols")
         return df
-    
-    
-    # def _step_profile_dataset(self, state):
-    #     state["profile"] = profile_dataset(state["df"], self.ctx.target)
-    #     return state
-
 
     def _step_build_preprocessor(self, state):
         state["preprocessor"] = build_preprocessor(state["profile"], state["internal_memory"])
@@ -122,7 +116,6 @@ class AgenticDataScientist:
     
     def _step_select_basic_models(self, state):
         # Start with a basic set of candidate models for all datasets
-        # state["internal_memory"].setdefault('candidates',[]).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
         state["internal_memory"].setdefault('candidates_name', []).extend({'DummyMostFrequent', 'RandomForest', 'LogisticRegression'})
         self.log(f"Planner suggests initial candidate models: {state['internal_memory']['candidates_name']}")
         return state
