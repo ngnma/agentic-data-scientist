@@ -348,9 +348,3 @@ Future improvements may include:
 The Agentic Data Scientist demonstrates the feasibility of building an autonomous system capable of executing the full machine learning pipeline. By combining planning, reflection, and memory, the system achieves adaptive and intelligent behavior.
 
 This work highlights the potential of agent-based systems in automating data science workflows, reducing manual effort while maintaining high-quality results.
-
----
-
-## Word Count
-
-Approximate word count: **3200–3500 words**
