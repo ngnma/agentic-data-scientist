@@ -64,13 +64,6 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     profile["feature_types"] = {"numeric": numeric_cols, "categorical": cat_cols}
     profile["n_unique_by_col"] = {str(c): int(df[c].nunique(dropna=True)) for c in df.columns.astype(str)}
 
-    notes = []
-    if profile["shape"]["rows"] < 1000:
-        notes.append("Small dataset (<1000 rows): prefer simpler models / guard against overfitting.")
-    if profile["shape"]["cols"] > 100:
-        notes.append("High dimensionality (>100 columns): watch one-hot expansion and overfitting.")
-    profile["notes"] = notes
-
     # outlier_ratio_by_col using IQR method
     outlier_ratio_by_col = {}
     for col in numeric_cols:
@@ -106,12 +99,9 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
         else:
             ratio = 1.0
         profile["imbalance_ratio"] = round(ratio, 3)
-        if ratio >= 3.0:
-            profile["notes"].append("Imbalance detected (ratio >= 3.0): prioritise macro metrics / balanced accuracy.")
     else:
         profile["class_counts"] = None
         profile["imbalance_ratio"] = None
-        profile["notes"].append("Non-classification target detected: this template focuses on classification.")
 
     # noise_ratio estimation using ANOVA F-test p-values for numeric features
     aligned_numerical_df, aligned_y = df[numeric_cols].dropna().align(y, join='inner', axis=0)
@@ -124,10 +114,5 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     for col in numeric_cols:
         skewness_by_col[str(col)] = abs(float(round(X[col].skew(),4)))
     profile["skewness_by_col"] = skewness_by_col
-
-    
-
-    profile['plan_notes'] = dict()
-    profile['plan_suggestions'] = dict()
 
     return profile

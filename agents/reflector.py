@@ -55,7 +55,6 @@ def reflect(
     classification_report = evaluation.get("classification_report", {})
 
     # ------------------- Reflection logic starts here
-
     if significant_tests_succesfull(evaluation, suggestions):
         print(f"[Reflection] Statistical tests successful. Model {best_model} is significantly better than all others. -> Consider baseline comparison.")
 

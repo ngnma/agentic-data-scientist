@@ -73,7 +73,7 @@ class AgenticDataScientist:
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A0_select_basic_models": self._step_select_basic_models,
             "P3A1_select_additional_models": self._step_select_additional_models,
-            "P3A2_simpler_models": self.step_select_simpler_models, # TODO: need refactor
+            "P3A2_simpler_models": self.step_select_simpler_models,
             "P3A3_choose_best_model": self._step_choose_best_model,
             "P3A4_regularization": self._step_apply_regularization,
             "P3A5_increase_model_complexity": self.step_increase_model_complexity,
@@ -214,11 +214,9 @@ class AgenticDataScientist:
         suggested = SIMPLER_MODEL_MAP.get(best_model)
 
         if suggested:
-            state['profile']['plan_notes']['simpler_model_selection'] = f"Reflection suggested trying simpler model: {suggested} instead of {best_model}."
-            state['profile']['plan_suggestions'].setdefault('add_models', []).append(suggested)
+            state['internal_memory'].setdefault('candidates_name', []).append(suggested)
             self.log(f"Reflection suggests trying simpler model: {suggested} instead of {best_model}")
         else:
-            state['profile']['plan_notes']['simpler_model_selection'] = f"Model {best_model} is already the most simple model or the simpler model is already exist in candidates but it performed worse. No simpler model will be added to the plan."
             self.log(f"No simpler model suggestion for best model: {best_model}")
         return state
     
@@ -453,7 +451,6 @@ class AgenticDataScientist:
             # Log iteration info, including plan, profile, evaluation results, reflection, and replan decision
             iter_info = {
                 'plan': copy.deepcopy(self.state['plan']),
-                'plan_notes': copy.deepcopy(self.state['profile']['plan_notes']),
                 'observation': {
                     "best_model": self.state['eval_payload']["best_metrics"]["model"],
                     "best_metrics": copy.deepcopy(self.state['eval_payload']["best_metrics"])
