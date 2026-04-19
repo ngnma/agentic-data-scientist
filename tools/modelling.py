@@ -183,7 +183,7 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
 def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any, Dict[str, Any]]]:
 
     SEACRH_SPACE = {
-        "with_reqularization": {
+        "with_regularization": {
             "LogisticRegression": {
                 "model__C": [0.1],
                 "model__penalty": ["l2"],

@@ -61,6 +61,7 @@ class AgenticDataScientist:
         self.ctx: Optional[RunContext] = None
         self.state: Dict[str, Any] = {}
         self.state['internal_memory'] = {}
+        self.state['internal_memory'].setdefault('reflection_memory', {})
 
         self.step_registry = {
             # "P1B_profile_dataset": self._step_profile_dataset,
@@ -89,6 +90,11 @@ class AgenticDataScientist:
             "P5B_evaluate": self._step_evaluate,
             "P6B_reflect": self._step_reflect,
             "P7B_write_report": self._step_write_report,
+            "P8_skip_data_quality_step": self._step_P8_skip_data_quality_step,
+            "P8_skip_handle_overfirring": self._step_P8_skip_handle_overfirring,
+            "P8_skip_handle_underfirring": self._step_P8_skip_handle_underfirring,
+            "P8_skip_tuning": self._step_P8_skip_tuning,
+            "P8_skip_per_class_analysis": self._step_P8_skip_per_class_analysis,
         }
 
     def log(self, msg: str) -> None:
@@ -134,6 +140,7 @@ class AgenticDataScientist:
         return state
     
     def _step_select_models(self, state):
+        state["internal_memory"]["candidates_name"] = list(set(state["internal_memory"].get("candidates_name", [])))
         state["candidates"] = select_models(state["internal_memory"], seed=self.ctx.seed)
         return state
     
@@ -160,7 +167,8 @@ class AgenticDataScientist:
     def _step_reflect(self, state):
         state["reflection"] = reflect(
             dataset_profile=state["profile"],
-            evaluation=state["eval_payload"]
+            evaluation=state["eval_payload"],
+            reflection_memory=state['internal_memory']['reflection_memory']
         )
         return state
     
@@ -184,7 +192,7 @@ class AgenticDataScientist:
         return state
     
     def _step_apply_regularization(self, state):
-        state['internal_memory']['search_space'] = 'with_reqularization'
+        state['internal_memory']['search_space'] = 'with_regularization'
         self.log("Reflection suggests applying regularization to handle small dataset size (rows < 100).")
         return state
     
@@ -256,7 +264,7 @@ class AgenticDataScientist:
     def _step_choose_best_model(self, state):
         best_model = state['eval_payload']['best_metrics']['model']
         state['internal_memory']['candidates_name'] = [best_model]
-        self.log(f"Reflection suggests prioritizing the best performing model: {state['internal_memory']['candidates']} and removing other candidates.")
+        self.log(f"Reflection suggests prioritizing the best performing model: {state['internal_memory']['candidates_name']} and removing other candidates.")
         return state
     
     def _step_handle_missing_values(self, state):
@@ -355,6 +363,36 @@ class AgenticDataScientist:
         state['internal_memory']['Yeo-Johnson-transform'] = strong_skewed_cols
         state['internal_memory']['SquareRoot-transform'] = medium_skewed_cols
         self.log(f"Planner suggests applying Yeo-Johnson transformation to numeric columns with strong skewness (skewness >= 1): {strong_skewed_cols} and Square Root transformation to columns with medium skewness (0.5 <= skewness < 1): {medium_skewed_cols}")
+        return state
+    
+    def _step_P8_skip_data_quality_step(self, state):
+        # This is a no-op step that can be used to skip data quality related steps during re-planning
+        state['internal_memory']['reflection_memory']['skip_data_quality'] = True
+        self.log("Planner suggests skipping data quality related steps based on reflection insights.")
+        return state
+    
+    def _step_P8_skip_handle_overfirring(self, state):
+        # This is a no-op step that can be used to skip overfitting handling related steps during re-planning
+        state['internal_memory']['reflection_memory']['skip_overfitting'] = True
+        self.log("Planner suggests skipping overfitting handling related steps based on reflection insights.")
+        return state
+    
+    def _step_P8_skip_handle_underfirring(self, state):
+        # This is a no-op step that can be used to skip underfitting handling related steps during re-planning
+        state['internal_memory']['reflection_memory']['skip_underfitting'] = True
+        self.log("Planner suggests skipping underfitting handling related steps based on reflection insights.")
+        return state
+    
+    def _step_P8_skip_tuning(self, state):
+        # This is a no-op step that can be used to skip hyperparameter tuning related steps during re-planning
+        state['internal_memory']['reflection_memory']['skip_tuning'] = True
+        self.log("Planner suggests skipping hyperparameter tuning related steps based on reflection insights.")
+        return state
+    
+    def _step_P8_skip_per_class_analysis(self, state):
+        # This is a no-op step that can be used to skip per-class performance
+        state['internal_memory']['reflection_memory']['skip_per_class_analysis'] = True
+        self.log("Planner suggests skipping per-class performance analysis related steps based on reflection insights.")
         return state
         
 
