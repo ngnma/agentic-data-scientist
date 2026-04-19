@@ -266,7 +266,7 @@ def significant_tests_succesfull(
         if p_value >= 0.05:
             return False
         
-    suggestions.append(['P3A1_choose_best_model'])
+    suggestions.append(['P3A2_choose_best_model'])
     return True
 
 def per_class_analysis_successful(

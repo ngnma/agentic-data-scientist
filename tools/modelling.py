@@ -343,7 +343,7 @@ def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple
 
     candidates: List[Tuple[str, Any]] = []
 
-    for model_name in internal_memory.get("candidates", []):
+    for model_name in set(internal_memory.get("candidates_name", [])):
         if model_name in MODEL_DICT:
             
             candidates.append((

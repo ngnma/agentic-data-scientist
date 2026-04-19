@@ -1,17 +1,14 @@
 """
-Planner Agent - Students must extend this significantly
+Planner Agent
 
 The planner analyzes dataset characteristics and generates an execution plan.
 Your task is to implement sophisticated planning logic that adapts to different
 dataset types, sizes, and characteristics.
 
 TODO: Extend this module with:
-1. Sophisticated planning logic based on dataset profiles
 2. Different plan templates for different scenarios
 3. Memory-guided planning (use past successful strategies)
 4. Dependency management (task ordering)
-5. Conditional planning (if X then Y else Z)
-6. Fallback strategies for edge cases
 """
 
 from typing import Any, Dict, List, Optional
@@ -45,19 +42,13 @@ def create_plan(
         >>> plan = create_plan(profile)
         >>> print(plan)
         ['profile_dataset', 'consider_imbalance_strategy', 'train_models', ...]
-    
-    TODO for students:
-    - Implement conditional logic based on dataset size
-    - Add different strategies for imbalanced datasets
-    - Handle high-cardinality categorical features
-    - Use memory hints to prioritize successful models
-    - Create plan templates for common scenarios
-    - Add preprocessing steps based on data quality
+
     """
     
     # Basic plan structure (students should make this much more sophisticated)
     plan: List[str] = [
         # "P1B_profile_dataset",
+        "P3A0_select_basic_models",
         "P2B_build_preprocessor",
         "P3B_select_models",
         "P4B_train_models",
@@ -76,13 +67,9 @@ def create_plan(
     noise_ratio = dataset_profile.get("noise_ratio", 0.0)
     max_skewness = max(dataset_profile.get("skewness_by_col", {}).values(), default=0)
 
-    # Add candidate models based on dataset size and characteristics
-    internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
-
-    # if rows <= 50000: # TODO: un-comment it. it is for testing purposes only
-    #     internal_memory.get('candidates',[]).append('GradientBoosting')
-    # if rows <= 20000 and cols <= 200:
-    #     internal_memory.get('candidates',[]).append('SVC_RBF')
+    # Add additional candidate models based on dataset size and characteristics
+    if rows <= 50000 or cols <= 200:
+        plan.append("P3A1_select_additional_models")
 
     # Imbalance Classes
     if imb >= 3.0:
@@ -114,29 +101,17 @@ def create_plan(
         plan.append("P2A5_handle_skewness")
 
 
-
-
-
-
-
-
-
-
-
-    # ===== Many Categorical Features =====
-    # not sure!
-    # if len(categorical_cols) > 10:
-    #     plan.append("P2A_optimize_categorical_encoding")
-
     # TODO: Use memory hints
     # if memory_hint and memory_hint.get("best_model"):
     #     plan.append(f"prioritize_model:{memory_hint['best_model']}")
 
-    # NEW FEATURE : rare categorical features
     
+    
+    # remove plan dupplicates
+    plan = list(set(plan))
+
     # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
     plan.sort()  
-    # TODO: remove plan dupplicates
     return plan
 
 

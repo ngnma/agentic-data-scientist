@@ -71,7 +71,9 @@ class AgenticDataScientist:
             "P2A5_handle_skewness": self._step_handle_skewness,
             "P2A6_optimize_skewness": self._step_optimize_skewness,
             "P2B_build_preprocessor": self._step_build_preprocessor,
-            "P3A1_choose_best_model": self._step_choose_best_model,
+            "P3A0_select_basic_models": self._step_select_basic_models,
+            "P3A1_select_additional_models": self._step_select_additional_models,
+            "P3A2_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
             "P3A_imb_class_weight": self._step_imb_class_weight,
             "P3A_feature_selection": self._step_feature_selection,
@@ -107,14 +109,32 @@ class AgenticDataScientist:
     #     return state
 
 
-    
     def _step_build_preprocessor(self, state):
         state["preprocessor"] = build_preprocessor(state["profile"], state["internal_memory"])
         return state
     
+    def _step_select_basic_models(self, state):
+        # Start with a basic set of candidate models for all datasets
+        # state["internal_memory"].setdefault('candidates',[]).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
+        state["internal_memory"].setdefault('candidates_name', []).extend({'DummyMostFrequent', 'RandomForest', 'LogisticRegression'})
+        self.log(f"Planner suggests initial candidate models: {state['internal_memory']['candidates_name']}")
+        return state
+    
+    def _step_select_additional_models(self, state):
+        rows = state['profile']['shape']['rows']
+        cols = state['profile']['shape']['cols']
+        
+        if rows <= 50000:
+            state["internal_memory"].setdefault('candidates_name', []).append('GradientBoosting')
+            self.log("Planner suggests adding GradientBoosting to candidates based on dataset size (rows <= 50k).")
+        if rows <= 20000 and cols <= 200:
+            state["internal_memory"].setdefault('candidates_name', []).append('SVC_RBF')
+            self.log("Planner suggests adding SVC_RBF to candidates based on dataset size (rows <= 20k and cols <= 200).")
+
+        return state
+    
     def _step_select_models(self, state):
         state["candidates"] = select_models(state["internal_memory"], seed=self.ctx.seed)
-        # self.log(f"Candidate models: {[n for n, _ in state['candidates']]}")
         return state
     
     def _step_train_models(self, state):
