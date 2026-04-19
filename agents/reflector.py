@@ -1,15 +1,7 @@
 """
-Reflector Agent - Students must extend this significantly
+Reflector Agent
 
-The reflector evaluates execution results, identifies issues, and suggests improvements.
-Your task is to implement sophisticated analysis that goes beyond simple threshold checks.
-
-TODO: Extend this module with:
-1. Statistical significance testing between models
-2. Per-class performance analysis
-3. Root cause diagnosis (data quality, preprocessing, model issues)
-4. Actionable, prioritized suggestions
-5. Learning from past reflections (meta-learning)
+The reflector evaluates execution results, identifies issues, and suggests improvements using sophisticated analysis that goes beyond simple threshold checks.
 """
 
 from typing import Any, Dict, List, Tuple, Optional
@@ -306,7 +298,7 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
         print("[Replan] ✅ Replan: clearly under target + sufficient confidence")
         return True
 
-    if recommended and slightly_under_target and confidence >= 0.6 and not memory_is_unfavorable:
+    if recommended and slightly_under_target and r >= 0.6 and not memory_is_unfavorable:
         print("[Replan] ✅ Replan: reflector recommended + moderate confidence")
         return True
 

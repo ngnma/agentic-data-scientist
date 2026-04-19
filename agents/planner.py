@@ -1,14 +1,8 @@
 """
 Planner Agent
 
-The planner analyzes dataset characteristics and generates an execution plan.
-Your task is to implement sophisticated planning logic that adapts to different
+The planner analyzes dataset characteristics and generates an execution plan using sophisticated planning logic that adapts to different
 dataset types, sizes, and characteristics.
-
-TODO: Extend this module with:
-2. Different plan templates for different scenarios
-3. Memory-guided planning (use past successful strategies)
-4. Dependency management (task ordering)
 """
 
 from typing import Any, Dict, List, Optional
@@ -22,8 +16,6 @@ def create_plan(
     """
     Generate an execution plan based on dataset characteristics.
     
-    This is a basic implementation. Students should extend this significantly.
-    
     Args:
         dataset_profile: Dictionary containing dataset metadata including:
             - shape: {rows: int, cols: int}
@@ -36,18 +28,10 @@ def create_plan(
     
     Returns:
         List of task names representing the execution plan
-        
-    Example:
-        >>> profile = {"shape": {"rows": 5000}, "imbalance_ratio": 4.5}
-        >>> plan = create_plan(profile)
-        >>> print(plan)
-        ['profile_dataset', 'consider_imbalance_strategy', 'train_models', ...]
 
     """
     
-    # Basic plan structure (students should make this much more sophisticated)
     plan: List[str] = [
-        # "P1B_profile_dataset",
         "P3A0_select_basic_models",
         "P2B_build_preprocessor",
         "P3B_select_models",
@@ -98,13 +82,6 @@ def create_plan(
     # skewness (Normalization)
     if max_skewness >= 0.5:
         plan.append("P2A5_handle_skewness")
-
-
-    # TODO: Use memory hints
-    # if memory_hint and memory_hint.get("best_model"):
-    #     plan.append(f"prioritize_model:{memory_hint['best_model']}")
-
-    
     
     # remove plan dupplicates
     plan = list(set(plan))
@@ -112,12 +89,4 @@ def create_plan(
     # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
     plan.sort()  
     return plan
-
-
-# TODO: Add helper functions for planning
-# def create_small_dataset_plan(...):
-# def create_imbalanced_dataset_plan(...):
-# def create_high_dimensional_plan(...):
-# def select_preprocessing_strategy(...):
-# def estimate_plan_cost(...):  # For cost-aware planning
 
