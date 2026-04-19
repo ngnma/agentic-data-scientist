@@ -73,6 +73,7 @@ def create_plan(
     max_missing = max(dataset_profile.get("missing_pct", {}).values(), default=0)
     categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
     n_unique = dataset_profile.get("n_unique_by_col", {})
+    noise_ratio = dataset_profile.get("noise_ratio", 0.0)
 
     # Add candidate models based on dataset size and characteristics
     internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
@@ -103,6 +104,14 @@ def create_plan(
     if cols > 100 or (rows > 0 and cols / rows > 0.5):
         plan.append("P3A_feature_selection")
 
+    # Noisy Data
+    if noise_ratio> 0.3:
+        plan.append("P3A_regularization")
+
+
+    # skewness (Normalization)
+    # TODO
+
     # ===== Many Categorical Features =====
     # not sure!
     # if len(categorical_cols) > 10:
@@ -116,6 +125,7 @@ def create_plan(
     
     # Ensure consistent execution order (P1A, P1B, P2A, P2B, etc.)
     plan.sort()  
+    # TODO: remove plan dupplicates
     return plan
 
 

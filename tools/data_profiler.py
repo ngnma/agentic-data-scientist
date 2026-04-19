@@ -1,5 +1,7 @@
 from typing import Any, Dict, Optional
 import pandas as pd
+from sklearn.feature_selection import f_classif
+import numpy as np
 
 
 def infer_target_column(df: pd.DataFrame) -> Optional[str]:
@@ -110,6 +112,12 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
         profile["class_counts"] = None
         profile["imbalance_ratio"] = None
         profile["notes"].append("Non-classification target detected: this template focuses on classification.")
+
+    # noise_ratio estimation using ANOVA F-test p-values for numeric features
+    aligned_numerical_df, aligned_y = df[numeric_cols].dropna().align(y, join='inner', axis=0)
+    F, p_value = f_classif(aligned_numerical_df, aligned_y)
+    noise_ratio = np.mean(p_value > 0.05)
+    profile["noise_ratio"] = round(float(noise_ratio), 3)
 
     profile['plan_notes'] = dict()
     profile['plan_suggestions'] = dict()
