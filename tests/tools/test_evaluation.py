@@ -1,17 +1,19 @@
 from types import SimpleNamespace
+
 import pandas as pd
 
-from tools.evaluation import save_json, evaluate_best, write_markdown_report
+from tools.evaluation import evaluate_best, save_json, write_markdown_report
 
 
 def test_save_json_writes_file(tmp_path):
     path = tmp_path / "data.json"
     save_json(path, {"a": 1})
+
     assert path.exists()
     assert '"a": 1' in path.read_text()
 
 
-def test_evaluate_best_creates_confusion_matrix_file(tmp_path):
+def test_evaluate_best_creates_confusion_matrix(tmp_path):
     payload = {
         "best": {
             "name": "DummyMostFrequent",
