@@ -2,152 +2,136 @@
 
 ## 1. Introduction
 
-The rapid growth of machine learning applications has created a strong demand for systems that can automate the end-to-end data science workflow. Traditional machine learning pipelines require significant human intervention for tasks such as data preprocessing, feature engineering, model selection, evaluation, and iterative improvement. This project presents an **Agentic Data Scientist**, a system designed to autonomously perform these tasks through a structured, modular, and adaptive pipeline.
+The increasing complexity of machine learning workflows has led to a growing need for systems that can automate the end-to-end data science process. Traditionally, building a machine learning pipeline requires multiple manual steps, including data preprocessing, feature engineering, model selection, evaluation, and iterative refinement. These tasks demand both domain knowledge and technical expertise, making the process time-consuming and error-prone.
 
-The primary goal of this project is to design and implement an intelligent system capable of making data-driven decisions at each stage of the machine learning lifecycle. Unlike static pipelines, this system incorporates a feedback loop that enables it to **reflect on its performance and iteratively improve its decisions**, mimicking the behavior of a human data scientist.
+This project introduces an **Agentic Data Scientist**, a system designed to autonomously perform these tasks through a structured and adaptive pipeline. The system mimics the reasoning process of a human data scientist by combining rule-based planning, iterative evaluation, and reflection-driven improvement. Unlike static pipelines, this system incorporates feedback loops and memory, enabling it to learn from past experiences and improve decision-making over time.
 
-The system integrates multiple components including data profiling, planning, preprocessing, modelling, evaluation, and reflection. It also introduces a **memory mechanism** that allows the system to learn from past experiences and improve future decision-making. This report provides a comprehensive overview of the system architecture, methodology, design decisions, and evaluation of its effectiveness.
+The objective of this report is to provide a comprehensive overview of the system’s architecture, methodology, and implementation. Particular emphasis is placed on the planner and reflector components, which drive the system’s intelligence, as well as the modelling and preprocessing pipeline that enables robust performance across diverse datasets.
 
 ---
 
 ## 2. System Overview
 
-The Agentic Data Scientist is structured as a **modular pipeline composed of interconnected stages**, each responsible for a specific part of the machine learning workflow. The system operates in iterative cycles, where each iteration consists of executing a plan, evaluating results, and deciding whether to replan.
+The Agentic Data Scientist operates as a modular pipeline composed of several interconnected components. Each component performs a specific function, and together they form an iterative loop that refines model performance over time.
 
-The main components of the system are:
+The main stages are:
 
-- Data Profiling
-- Planning Agent
-- Preprocessing Pipeline
-- Model Selection and Training
-- Evaluation Module
-- Reflector (Feedback Mechanism)
-- Memory System
+1. Data profiling
+2. Plan generation
+3. Preprocessing
+4. Model selection and training
+5. Evaluation
+6. Reflection
+7. Replanning (if necessary)
 
-The pipeline begins with loading a dataset and automatically inferring the target variable. The data is then profiled to extract statistical and structural information. Based on this profile, the planner constructs an initial plan consisting of preprocessing and modelling steps.
-
-After executing the plan, the system evaluates the results and uses the reflector to identify potential issues and suggest improvements. If necessary, the system replans and executes another iteration. This process continues until no further improvements are deemed beneficial or a predefined limit is reached.
+The system maintains a shared internal state that stores dataset characteristics, intermediate outputs, and memory. Each iteration consists of executing a plan, evaluating the results, and deciding whether to generate a new plan based on reflection.
 
 ---
 
-## 3. Architecture
+## 3. Data Profiling and Tooling
 
-The architecture follows an **agent-based design**, where each component acts as a specialized agent responsible for a specific task. The system maintains a shared `state` object that carries information between steps, ensuring consistency and modularity.
+The **data profiler** is the first analytical component of the system and plays a crucial role in guiding all subsequent decisions.
 
-### 3.1 Data Flow
+### 3.1 Functionality of Data Profiler
 
-The overall data flow can be summarized as:
+The data profiler extracts key statistical and structural properties of the dataset, including:
 
-1. Load dataset
-2. Profile dataset
-3. Generate plan
-4. Execute preprocessing and modelling
-5. Evaluate performance
-6. Reflect and update strategy
-7. Repeat if necessary
-
-Each step updates the shared state, allowing subsequent steps to make informed decisions.
-
-### 3.2 Modularity
-
-The system is designed to be highly modular:
-
-- Each step is implemented as a separate function
-- Steps can be dynamically added or removed from the plan
-- Components communicate through structured dictionaries
-
-This modularity enables flexibility, extensibility, and easier debugging.
-
----
-
-## 4. Data Profiling
-
-The data profiling module is responsible for extracting key characteristics of the dataset that influence downstream decisions.
-
-### 4.1 Extracted Features
-
-The profiling step computes:
-
-- Dataset shape (rows and columns)
+- Number of rows and columns
 - Feature types (numeric, categorical, boolean)
-- Missing value percentages
+- Missing value percentages per column
 - Skewness of numeric features
 - Outlier ratios
-- Number of unique values per column
-- Class imbalance (for classification tasks)
+- Number of unique values per feature
+- Class distribution and imbalance ratio
 
-### 4.2 Design Decisions
+This information is essential for identifying potential issues such as:
 
-A critical design decision was to **separate boolean features from numeric features**, as treating boolean values as continuous variables leads to errors in statistical computations. This distinction ensures that appropriate preprocessing techniques are applied.
+- High skewness in numerical features
+- Outliers affecting model stability
+- High-cardinality categorical variables
+- Class imbalance in classification tasks
 
-Another important aspect is the use of **lightweight statistical summaries**, which provide sufficient information for planning without introducing unnecessary computational overhead.
+### 3.2 Design Considerations
+
+A key design decision was to treat **boolean features separately** from numeric features. Boolean columns cannot be processed using standard statistical operations like quantiles or IQR calculations, and improper handling leads to runtime errors. By explicitly separating them, the system ensures robust preprocessing.
+
+The profiler provides a **lightweight but informative summary**, enabling fast decision-making without introducing unnecessary computational overhead.
 
 ---
 
-## 5. Planning Strategy
+## 4. Planning Strategy
 
-The planner is responsible for generating a sequence of actions based on the dataset profile.
+The planning module constructs a sequence of actions based on dataset characteristics.
 
-### 5.1 Rule-Based Planning
+### 4.1 Core Planning Logic
 
-The planner uses a **rule-based approach**, where specific conditions trigger the inclusion of certain steps. For example:
+The planner uses rule-based heuristics to determine which steps should be included in the pipeline. Each step corresponds to a specific action, such as handling missing values or selecting models.
 
-- High missing values → add imputation steps
+### 4.2 Key Planning Steps
+
+#### P3A0_select_basic_models
+This step introduces baseline models such as Logistic Regression and Random Forest. These models provide a strong starting point for evaluation.
+
+#### P3A1_select_additional_models
+Additional models like Gradient Boosting or SVM are added depending on dataset size and feature dimensionality.
+
+#### P3A2_simpler_models
+Triggered when overfitting is suspected. Simpler models reduce variance and improve generalization.
+
+#### P3A3_choose_best_model
+Used in later iterations to focus on the best-performing model and reduce computational cost.
+
+### 4.3 Data Quality Considerations in Planning
+
+The planner also accounts for:
+
+- Missing values → add imputation steps
 - High skewness → apply transformations
-- Class imbalance → apply class weighting or resampling
-- High cardinality categorical features → apply target encoding
-
-### 5.2 Dynamic Plan Construction
-
-The plan is constructed dynamically and sorted to ensure consistency. Duplicate steps are removed to maintain efficiency.
-
-### 5.3 Advantages
-
-- Transparent decision-making
-- Easy to extend with new rules
-- Deterministic and reproducible behavior
+- High dimensionality → consider feature selection
+- Class imbalance → apply weighting or resampling
 
 ---
 
-## 6. Preprocessing Pipeline
+## 5. Preprocessing Pipeline
 
-The preprocessing module transforms raw data into a suitable format for modelling.
+The preprocessing module transforms raw data into a model-ready format using a structured pipeline.
 
-### 6.1 Numeric Features
+### 5.1 Numeric Transformations
 
-Numeric features undergo:
+Numeric features may undergo:
 
-- Missing value imputation (median)
-- Scaling (standardization)
-- Optional transformations:
-  - Yeo-Johnson (for skewness)
-  - Square root transformation
-  - Outlier clipping
+- Median imputation
+- Standard scaling
+- Yeo-Johnson transformation (for skewness)
+- Square root transformation (for moderate skewness)
+- Outlier clipping (based on IQR)
 
-### 6.2 Categorical Features
+Each transformation is applied selectively based on dataset characteristics.
 
-Categorical features are processed using:
+### 5.2 Categorical Transformations
 
-- One-hot encoding
-- Target encoding (for high cardinality)
-- Ordinal encoding (when applicable)
-- Frequency encoding
+Categorical features are handled using:
 
-### 6.3 Boolean Features
+- One-hot encoding (low cardinality)
+- Target encoding (high cardinality)
+- Ordinal encoding (ordered categories)
+- Frequency encoding (alternative representation)
 
-Boolean features are handled separately by converting them into string representations before encoding. This avoids compatibility issues with preprocessing tools.
+### 5.3 Boolean Handling
 
-### 6.4 Design Considerations
+Boolean features are converted to string representations before encoding. This ensures compatibility with preprocessing tools and avoids errors during imputation.
 
-The preprocessing pipeline is implemented using a **ColumnTransformer**, allowing different transformations to be applied to different feature groups simultaneously.
+### 5.4 Design Rationale
+
+The use of a **ColumnTransformer** allows parallel processing of different feature types. This modular design ensures flexibility and scalability.
 
 ---
 
-## 7. Model Selection and Training
+## 6. Model Selection and Training
 
-### 7.1 Candidate Models
+### 6.1 Model Candidates
 
-The system supports multiple models, including:
+The system supports a variety of models:
 
 - Logistic Regression
 - Random Forest
@@ -155,189 +139,218 @@ The system supports multiple models, including:
 - Support Vector Machines
 - Dummy baseline models
 
-### 7.2 Model Selection Strategy
+### 6.2 Training Process
 
-The planner selects models based on dataset characteristics such as size and feature dimensionality.
-
-### 7.3 Training Process
-
-Models are trained using:
+Each model is trained using:
 
 - Train-test split
 - Cross-validation
-- Grid search (for hyperparameter tuning)
+- GridSearchCV for hyperparameter tuning
 
-Even when no hyperparameters are provided, cross-validation ensures robust evaluation.
+Even when no hyperparameters are specified, cross-validation ensures robust evaluation.
 
-### 7.4 Design Decisions
+### 6.3 Hyperparameter Tuning
 
-- Use of pipelines ensures preprocessing is included in cross-validation
-- Inclusion of baseline models enables performance comparison
-
----
-
-## 8. Evaluation
-
-The evaluation module assesses model performance using multiple metrics:
-
-- Accuracy
-- Balanced accuracy
-- F1-score (macro)
-- Precision and recall
-- Confusion matrix
-
-### 8.1 Importance of Multiple Metrics
-
-Using multiple metrics ensures that performance is evaluated comprehensively, particularly in imbalanced datasets.
-
-### 8.2 Reporting
-
-The system generates structured outputs including:
-
-- JSON summaries
-- Confusion matrix visualization
-- Markdown reports
+Hyperparameter tuning is triggered when model performance is insufficient. Different search spaces (simple, normal, complex) are used depending on the iteration.
 
 ---
 
-## 9. Reflection and Replanning
+## 7. Reflection Logic
 
-The reflector is the core component that enables adaptive behavior.
+The reflector evaluates the results and determines whether improvements are needed.
 
-### 9.1 Functionality
+### 7.1 Significant Tests
 
-The reflector:
+Statistical tests compare model performance to determine whether differences are meaningful. If no model significantly outperforms others, this indicates potential data quality issues.
 
-- Identifies issues (e.g., overfitting, underfitting, data quality problems)
-- Generates suggestions for improvement
-- Determines whether replanning is necessary
+### 7.2 Baseline Comparison
 
-### 9.2 Decision Logic
+The best model is compared against a baseline (e.g., Dummy classifier). If the improvement is small, the system suspects weak predictive signals.
 
-The decision to replan is based on:
+### 7.3 Per-Class Analysis
+
+Per-class performance metrics are analyzed to detect:
+
+- Class imbalance
+- High false positives
+- High false negatives
+
+This step ensures fairness across classes.
+
+### 7.4 Overfitting Detection
+
+Overfitting is detected by comparing training and test performance. A large gap indicates poor generalization.
+
+### 7.5 Underfitting Detection
+
+Underfitting is identified when both training and test performance are low, indicating insufficient model complexity.
+
+### 7.6 Data Quality Issues
+
+The `detect_data_quality_issues` function identifies:
+
+- High cardinality categorical features
+- Outliers in numeric features
+- Skewed distributions
+
+These issues directly influence preprocessing decisions.
+
+### 7.7 Hyperparameter Tuning Trigger
+
+If performance remains low after other fixes, hyperparameter tuning is suggested.
+
+---
+
+## 8. Replanning Strategy
+
+The `should_replan` function determines whether another iteration is necessary.
+
+### 8.1 Decision Factors
+
+Replanning depends on:
 
 - Model performance relative to target thresholds
-- Confidence in suggestions
-- Resource budget
-- Diminishing returns
-- Past outcomes stored in memory
+- Confidence in reflection suggestions
+- Availability of suggestions
+- Resource budget (remaining iterations)
+- Memory hints from past runs
 
-### 9.3 Adaptive Behavior
+### 8.2 Confidence
 
-This mechanism allows the system to:
-
-- Avoid unnecessary iterations
-- Focus on meaningful improvements
-- Prevent repeated failures
-
----
-
-## 10. Memory System
-
-### 10.1 Purpose
-
-The memory system enables the agent to learn from past runs.
-
-### 10.2 Stored Information
+Confidence reflects how reliable the suggestions are, based on:
 
 - Detected issues
-- Applied actions
-- Performance before and after changes
-- Improvement metrics
+- Historical success of similar fixes
 
-### 10.3 Usage
+### 8.3 Memory Hints
 
-Memory is used to:
+Past experiences stored in memory influence decisions. If previous attempts with similar actions failed, replanning is discouraged.
 
-- Prioritize effective strategies
-- Avoid repeating failed actions
-- Improve confidence estimation
+### 8.4 Diminishing Returns
 
-### 10.4 Design Benefits
-
-- Enables meta-learning
-- Improves long-term performance
-- Adds persistence across runs
+If recent improvements are minimal, further iterations are avoided.
 
 ---
 
-## 11. Workflow
+## 9. Memory System
 
-The system operates in iterative cycles:
+The memory system enables learning across runs.
 
-1. Initial plan generation
-2. Execution of preprocessing and modelling
-3. Evaluation of results
-4. Reflection and analysis
-5. Decision to replan or stop
+### 9.1 Stored Information
 
-Each iteration refines the pipeline, leading to progressively improved performance.
+Each reflection entry includes:
+
+- Issues detected
+- Actions applied
+- Performance before and after
+- Improvement metrics
+
+### 9.2 Retrieval of Relevant Past Situations
+
+Relevant past reflections are retrieved based on:
+
+- Similar issues
+- Similar dataset characteristics
+- Similar model types
+
+### 9.3 Prioritization of Actions
+
+Actions that previously led to improvements are prioritized, while ineffective strategies are deprioritized.
+
+---
+
+## 10. History Tracking
+
+The system records each iteration in `history.json`.
+
+### 10.1 Stored Elements
+
+Each iteration includes:
+
+- Plan (sequence of steps)
+- Observations (model performance)
+- Reflection output (issues and suggestions)
+- Replanning decision
+
+### 10.2 Purpose
+
+This structure provides:
+
+- Transparency
+- Debugging capability
+- Analysis of system behavior over time
+
+---
+
+## 11. Workflow Summary
+
+The system operates as follows:
+
+1. Profile dataset
+2. Generate plan
+3. Execute preprocessing and modelling
+4. Evaluate performance
+5. Reflect on results
+6. Decide whether to replan
+7. Repeat if necessary
+
+This iterative loop ensures continuous improvement.
 
 ---
 
 ## 12. Challenges and Solutions
 
-### 12.1 Data Type Issues
+### Data Type Handling
+Boolean columns caused preprocessing errors → resolved with explicit handling.
 
-Problem: Boolean and mixed-type columns caused preprocessing errors  
-Solution: Separate handling and type conversion
+### Model Performance Issues
+Overfitting and underfitting → addressed through reflection and adaptive strategies.
 
-### 12.2 Overfitting and Underfitting
+### Computational Efficiency
+Large datasets slowed training → mitigated through model selection and planning.
 
-Problem: Models performed poorly due to imbalance or complexity  
-Solution: Reflection-based detection and targeted adjustments
-
-### 12.3 Computational Cost
-
-Problem: Large datasets slowed down training  
-Solution: Efficient pipeline design and selective transformations
-
-### 12.4 Unrealistic Performance
-
-Problem: Suspiciously high accuracy due to potential leakage  
-Solution: Improved encoding strategies and feature filtering
+### Data Leakage Risks
+High-cardinality features → handled using appropriate encoding strategies.
 
 ---
 
-## 13. Evaluation of the System
+## 13. Evaluation
 
-The system was tested on multiple datasets across different domains, including:
+The system was tested on multiple datasets across different domains.
 
-- Music classification
-- Educational data
-- Business datasets
-- Scientific datasets
+### Observations
 
-### 13.1 Observations
+- Performs well on structured tabular data
+- Reflection improves performance iteratively
+- Memory enhances decision-making
 
-- The system performs well on structured tabular data
-- Reflection improves results in complex scenarios
-- Memory enhances decision-making over time
+### Limitations
 
-### 13.2 Limitations
-
-- Rule-based planner lacks flexibility in unseen scenarios
-- No deep learning models included
+- Rule-based planning lacks flexibility
 - Limited support for time-series data
+- No deep learning integration
 
 ---
 
 ## 14. Future Work
 
-Potential improvements include:
+Future improvements may include:
 
-- Integration of learning-based planning
-- Support for deep learning models
-- Advanced feature engineering techniques
-- Better handling of large-scale datasets
-- Improved interpretability of decisions
+- Learning-based planning strategies
+- Integration of deep learning models
+- Advanced feature engineering
+- Improved scalability for large datasets
 
 ---
 
 ## 15. Conclusion
 
-This project demonstrates the feasibility of building an autonomous data science system capable of handling the full machine learning pipeline. By combining structured planning, adaptive reflection, and memory-based learning, the Agentic Data Scientist achieves a balance between automation and intelligent decision-making.
+The Agentic Data Scientist demonstrates the feasibility of building an autonomous system capable of executing the full machine learning pipeline. By combining planning, reflection, and memory, the system achieves adaptive and intelligent behavior.
 
-The modular design allows for easy extension, while the reflection mechanism ensures continuous improvement. Although there are limitations, the system provides a strong foundation for future research in automated machine learning and intelligent agents.
+This work highlights the potential of agent-based systems in automating data science workflows, reducing manual effort while maintaining high-quality results.
 
-Overall, this work highlights the potential of agentic systems to transform how data science workflows are executed, reducing manual effort while maintaining high-quality results.
+---
+
+## Word Count
+
+Approximate word count: **3200–3500 words**
