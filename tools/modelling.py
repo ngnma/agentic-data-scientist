@@ -9,7 +9,14 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder, OrdinalEncoder, FunctionTransformer
+from sklearn.preprocessing import (
+    OneHotEncoder, 
+    StandardScaler, 
+    TargetEncoder, 
+    OrdinalEncoder, 
+    FunctionTransformer, 
+    PowerTransformer
+)
 
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -35,28 +42,47 @@ from sklearn.model_selection import (
 from sklearn.feature_selection import SelectKBest, f_classif
 from scipy.stats.mstats import winsorize
 
-
-
 def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any]) -> ColumnTransformer:
 
-    drop_cols = internal_memory.get("drop_cols",[])
+    drop_cols = internal_memory.get("drop_cols", [])
 
     # Categorical columns
     cat_cols = [c for c in profile["feature_types"]["categorical"] if c not in drop_cols]
-    target_enc_cols = internal_memory.get("target_encoding", [])
-    ordinal_enc_cols = internal_memory.get("ordinal_encoding", [])
-    frequency_enc_cols = internal_memory.get("frequency_encoding", [])
-    onehot_enc_cols = internal_memory.get("onehot_encoding", cat_cols)  # default to all cat_cols if not set
+    target_enc_cols = [c for c in internal_memory.get("target_encoding", []) if c in cat_cols]
+    ordinal_enc_cols = [c for c in internal_memory.get("ordinal_encoding", []) if c in cat_cols]
+    frequency_enc_cols = [c for c in internal_memory.get("frequency_encoding", []) if c in cat_cols]
+    onehot_enc_cols = [c for c in internal_memory.get("onehot_encoding", cat_cols) if c in cat_cols]
 
     # Numeric columns
     num_cols = [c for c in profile["feature_types"]["numeric"] if c not in drop_cols]
-    clip_and_scale_cols = internal_memory.get("clip_and_scale", [])
-    scale_cols = internal_memory.get("scale", num_cols)  # default to all num_cols if not set
+
+    clip_and_scale_cols = [c for c in internal_memory.get("clip_and_scale", []) if c in num_cols]
+    yeo_johnson_trans_cols = [c for c in internal_memory.get("Yeo-Johnson-transform", []) if c in num_cols]
+    sqr2_trans_cols = [c for c in internal_memory.get("SquareRoot-transform", []) if c in num_cols]
+    scale_request_cols = [c for c in internal_memory.get("scale", num_cols) if c in num_cols]
+
+    # Ensure each numeric column belongs to one and only one numeric transformer
+    assigned_num = set()
+
+    clip_and_scale_cols = [c for c in clip_and_scale_cols if c not in assigned_num]
+    assigned_num.update(clip_and_scale_cols)
+
+    yeo_johnson_trans_cols = [c for c in yeo_johnson_trans_cols if c not in assigned_num]
+    assigned_num.update(yeo_johnson_trans_cols)
+
+    sqr2_trans_cols = [c for c in sqr2_trans_cols if c not in assigned_num]
+    assigned_num.update(sqr2_trans_cols)
+
+    scale_cols = [c for c in scale_request_cols if c not in assigned_num]
+    assigned_num.update(scale_cols)
+
+    # Any remaining numeric columns still get standard scaling
+    remaining_num_cols = [c for c in num_cols if c not in assigned_num]
+    scale_cols.extend(remaining_num_cols)
 
     transformers = []
 
     # Numeric Transformers
-
     if scale_cols:
         transformers.append((
             "num_scale",
@@ -80,8 +106,31 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         ))
         print(f"[Preprocessing] Applying clipping + scaling to numeric columns: {clip_and_scale_cols}")
 
-    # Categorical Transformers
+    if yeo_johnson_trans_cols:
+        transformers.append((
+            "num_yeojohnson_scale",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("yeo_johnson", PowerTransformer(method="yeo-johnson", standardize=False)),
+                ("scaler", StandardScaler(with_mean=True)),
+            ]),
+            yeo_johnson_trans_cols
+        ))
+        print(f"[Preprocessing] Applying Yeo-Johnson + scaling to numeric columns: {yeo_johnson_trans_cols}")
 
+    if sqr2_trans_cols:
+        transformers.append((
+            "num_sqrt_scale",
+            Pipeline(steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("sqrt", FunctionTransformer(np.sqrt, validate=False)),
+                ("scaler", StandardScaler(with_mean=True)),
+            ]),
+            sqr2_trans_cols
+        ))
+        print(f"[Preprocessing] Applying Square Root + scaling to numeric columns: {sqr2_trans_cols}")
+
+    # Categorical Transformers
     if onehot_enc_cols:
         transformers.append((
             "cat_ohe",
@@ -95,11 +144,11 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
 
     if target_enc_cols:
         transformers.append((
-            "cat_target", 
+            "cat_target",
             Pipeline(steps=[
                 ("imputer", SimpleImputer(strategy="most_frequent")),
                 ("target_encoder", TargetEncoder()),
-            ]), 
+            ]),
             target_enc_cols
         ))
         print(f"[Preprocessing] Applying TargetEncoder to columns: {target_enc_cols}")
@@ -109,11 +158,11 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
             "cat_freq",
             Pipeline(steps=[
                 ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("target_encoder", TargetEncoder()), # TargetEncoder used as a proxy for frequency encoding due to lack of native support in scikit-learn.
+                ("target_encoder", TargetEncoder()),  # proxy for frequency encoding
             ]),
             frequency_enc_cols
         ))
-        print(f"[Preprocessing] Applying Frequency Encoding to columns: {frequency_enc_cols}")  
+        print(f"[Preprocessing] Applying Frequency Encoding to columns: {frequency_enc_cols}")
 
     if ordinal_enc_cols:
         transformers.append((
@@ -126,10 +175,9 @@ def build_preprocessor(profile: Dict[str, Any], internal_memory: Dict[str, Any])
         ))
         print(f"[Preprocessing] Applying Ordinal Encoding to columns: {ordinal_enc_cols}")
 
-
     return ColumnTransformer(
         transformers=transformers,
-        remainder="drop", # Any column that is NOT explicitly listed in transformers will be removed.
+        remainder="drop",
     )
 
 def select_models(internal_memory: Dict[str, Any], seed: int = 42) -> List[Tuple[str, Any, Dict[str, Any]]]:

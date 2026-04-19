@@ -323,8 +323,8 @@ class AgenticDataScientist:
         drop_cols = state['internal_memory'].get('drop_cols', [])
 
         skewed_cols = [key for key, value in skewness_by_col.items() if value >= 1 and key not in drop_cols]
-        state['internal_memory']['Box-Cox-transform'] = skewed_cols
-        self.log(f"Planner suggests applying Box-Cox transformation to numeric columns with high skewness (skewness >= 0.5): {skewed_cols}")
+        state['internal_memory']['Yeo-Johnson-transform'] = skewed_cols
+        self.log(f"Planner suggests applying Yeo-Johnson transformation to numeric columns with high skewness (skewness >= 0.5): {skewed_cols}")
         return state
 
     def _step_optimize_skewness(self, state):
@@ -334,9 +334,9 @@ class AgenticDataScientist:
         medium_skewed_cols = [key for key, value in skewness_by_col.items() if value >= 0.5 and value < 1 and key not in drop_cols]
         strong_skewed_cols = [key for key, value in skewness_by_col.items() if value >= 1 and key not in drop_cols]
         
-        state['internal_memory']['Box-Cox-transform'] = strong_skewed_cols
+        state['internal_memory']['Yeo-Johnson-transform'] = strong_skewed_cols
         state['internal_memory']['SquareRoot-transform'] = medium_skewed_cols
-        self.log(f"Planner suggests applying Box-Cox transformation to numeric columns with strong skewness (skewness >= 1): {strong_skewed_cols} and Square Root transformation to columns with medium skewness (0.5 <= skewness < 1): {medium_skewed_cols}")
+        self.log(f"Planner suggests applying Yeo-Johnson transformation to numeric columns with strong skewness (skewness >= 1): {strong_skewed_cols} and Square Root transformation to columns with medium skewness (0.5 <= skewness < 1): {medium_skewed_cols}")
         return state
         
 
