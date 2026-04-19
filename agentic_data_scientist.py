@@ -68,6 +68,8 @@ class AgenticDataScientist:
             "P2A2_apply_encoding": self._step_apply_encoding,
             "P2A3_optimize_categorical_encoding": self._step_optimize_categorical_encoding,
             "P2A4_handle_numeric_outliers": self._step_numeric_outlier_handling,
+            "P2A5_handle_skewness": self._step_handle_skewness,
+            "P2A6_optimize_skewness": self._step_optimize_skewness,
             "P2B_build_preprocessor": self._step_build_preprocessor,
             "P3A1_choose_best_model": self._step_choose_best_model,
             "P3A_regularization": self._step_apply_regularization,
@@ -314,6 +316,31 @@ class AgenticDataScientist:
         self.log(f"Reflector suggests scaling numeric columns with low outlier ratio (<5%): {low_outliers} and clipping + scaling columns with high outlier ratio (>=5%): {high_outliers}")
 
         return state
+    
+    def _step_handle_skewness(self, state):
+        # use Square Root transformation for numeric columns with high skewness
+        skewness_by_col = state['profile'].get("skewness_by_col", {})
+        drop_cols = state['internal_memory'].get('drop_cols', [])
+
+        skewed_cols = [key for key, value in skewness_by_col.items() if value >= 1 and key not in drop_cols]
+        state['internal_memory']['Box-Cox-transform'] = skewed_cols
+        self.log(f"Planner suggests applying Box-Cox transformation to numeric columns with high skewness (skewness >= 0.5): {skewed_cols}")
+        return state
+
+    def _step_optimize_skewness(self, state):
+        skewness_by_col = state['profile'].get("skewness_by_col", {})
+        drop_cols = state['internal_memory'].get('drop_cols', [])
+
+        medium_skewed_cols = [key for key, value in skewness_by_col.items() if value >= 0.5 and value < 1 and key not in drop_cols]
+        strong_skewed_cols = [key for key, value in skewness_by_col.items() if value >= 1 and key not in drop_cols]
+        
+        state['internal_memory']['Box-Cox-transform'] = strong_skewed_cols
+        state['internal_memory']['SquareRoot-transform'] = medium_skewed_cols
+        self.log(f"Planner suggests applying Box-Cox transformation to numeric columns with strong skewness (skewness >= 1): {strong_skewed_cols} and Square Root transformation to columns with medium skewness (0.5 <= skewness < 1): {medium_skewed_cols}")
+        return state
+        
+
+       
 
     def run(
         self,

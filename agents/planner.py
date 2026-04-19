@@ -74,6 +74,7 @@ def create_plan(
     categorical_cols = dataset_profile.get("feature_types", {}).get("categorical", [])
     n_unique = dataset_profile.get("n_unique_by_col", {})
     noise_ratio = dataset_profile.get("noise_ratio", 0.0)
+    max_skewness = max(dataset_profile.get("skewness_by_col", {}).values(), default=0)
 
     # Add candidate models based on dataset size and characteristics
     internal_memory.setdefault('candidates', []).extend(['DummyMostFrequent', 'RandomForest', 'LogisticRegression'])
@@ -107,10 +108,20 @@ def create_plan(
     # Noisy Data
     if noise_ratio> 0.3:
         plan.append("P3A_regularization")
-
-
+    
     # skewness (Normalization)
-    # TODO
+    if max_skewness >= 0.5:
+        plan.append("P2A5_handle_skewness")
+
+
+
+
+
+
+
+
+
+
 
     # ===== Many Categorical Features =====
     # not sure!

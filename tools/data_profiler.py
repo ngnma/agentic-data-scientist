@@ -119,6 +119,14 @@ def profile_dataset(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     noise_ratio = np.mean(p_value > 0.05)
     profile["noise_ratio"] = round(float(noise_ratio), 3)
 
+    # skewness estimation for numeric features
+    skewness_by_col = {}
+    for col in numeric_cols:
+        skewness_by_col[str(col)] = abs(float(round(X[col].skew(),4)))
+    profile["skewness_by_col"] = skewness_by_col
+
+    
+
     profile['plan_notes'] = dict()
     profile['plan_suggestions'] = dict()
 

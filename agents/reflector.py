@@ -368,6 +368,7 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
     n_unique = dataset_profile.get("n_unique_by_col", {})
     rows = dataset_profile['shape']['rows']
 
+
     has_medium_cardinal_col = any(n_unique[c] > 15 for c in categorical_cols)
     has_constant_col = any(n_unique[c] == 1 for c in categorical_cols)
     has_id_col = any(n_unique[c] == rows for c in categorical_cols)
@@ -384,6 +385,14 @@ def detect_data_quality_issues(issues: List[str], suggestions: List[str], datase
         issues.append("data_quality: numeric feature outliers")
         suggestions.append(["P2A4_handle_numeric_outliers"])
         print("[Reflection] Data quality issue detected: numeric feature outliers. -> Consider handling numeric outliers")
+
+    # 3. Analyze skewness of numeric features
+    max_skewness = max(dataset_profile.get("skewness_by_col", {}).values(), default=0)
+
+    if max_skewness >= 1:
+        issues.append("data_quality: skewed numeric features")
+        suggestions.append(["P2A6_optimize_skewness"])
+        print("[Reflection] Data quality issue detected: skewed numeric features. -> Consider optimizing skewness")
 
     
 
