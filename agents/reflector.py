@@ -205,11 +205,11 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     """
 
     if not reflection:
-        print("[Replan] ❌ No reflection available → skip replanning")
+        print("[Replan]  No reflection available → skip replanning")
         return False
 
     if not reflection.get("issues"):
-        print("[Replan] ❌ No issues detected → nothing to fix")
+        print("[Replan]  No issues detected → nothing to fix")
         return False
 
     best_metrics = reflection.get("best_metrics", {}) or {}
@@ -231,7 +231,7 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     confidence = float(reflection.get("confidence", 0.5) or 0.5)
 
     if not suggestions:
-        print("[Replan] ❌ No suggestions available → cannot improve")
+        print("[Replan]  No suggestions available → cannot improve")
         return False
 
     budget = reflection.get("resource_budget", {}) or {}
@@ -239,10 +239,10 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     min_expected_gain = float(budget.get("min_expected_gain", 0.01) or 0.01)
 
     if remaining_replans <= 0:
-        print("[Replan] ❌ Replan budget exhausted → stopping")
+        print("[Replan]  Replan budget exhausted → stopping")
         return False
 
-    # ---------- diminishing returns ----------
+    # diminishing returns 
     history = reflection.get("history", []) or []
     recent_deltas = []
 
@@ -257,16 +257,16 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     )
 
     if diminishing_returns:
-        print(f"[Replan] ⚠️ Diminishing returns detected → avg_gain={avg_recent_gain:.4f} < {min_expected_gain}")
+        print(f"[Replan] Diminishing returns detected → avg_gain={avg_recent_gain:.4f} < {min_expected_gain}")
 
-    # ---------- memory check ----------
+    # memory check 
     failed_actions = set(reflection.get("failed_actions", []) or [])
     candidate_actions = []
     for group in suggestions:
         candidate_actions.extend(group)
 
     if candidate_actions and all(action in failed_actions for action in candidate_actions):
-        print("[Replan] ❌ All candidate actions previously failed → skipping")
+        print("[Replan]  All candidate actions previously failed → skipping")
         return False
 
     memory_matches = reflection.get("memory_matches_details", []) or []
@@ -283,32 +283,32 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     memory_is_unfavorable = negative_memory_hits > positive_memory_hits and negative_memory_hits > 0
 
     if memory_is_unfavorable:
-        print(f"[Replan] ⚠️ Memory unfavorable → {negative_memory_hits} failures vs {positive_memory_hits} successes")
+        print(f"[Replan] Memory unfavorable → {negative_memory_hits} failures vs {positive_memory_hits} successes")
 
     clearly_under_target = score < (target_score - 0.05)
     slightly_under_target = score < target_score
 
-    # ---------- STOP condition ----------
+    # STOP condition
     if memory_is_unfavorable and diminishing_returns:
-        print("[Replan] ❌ Stop: bad memory + diminishing returns → no further replanning")
+        print("[Replan]  Stop: bad memory + diminishing returns → no further replanning")
         return False
 
-    # ---------- GO conditions ----------
+    # GO conditions 
     if clearly_under_target and confidence >= 0.4 and not diminishing_returns:
-        print("[Replan] ✅ Replan: clearly under target + sufficient confidence")
+        print("[Replan] Replan: clearly under target + sufficient confidence")
         return True
 
     if recommended and slightly_under_target and r >= 0.6 and not memory_is_unfavorable:
-        print("[Replan] ✅ Replan: reflector recommended + moderate confidence")
+        print("[Replan] Replan: reflector recommended + moderate confidence")
         return True
 
     if recommended and clearly_under_target and remaining_replans > 0 and not diminishing_returns:
-        print("[Replan] ✅ Replan: recommended + clearly under target")
+        print("[Replan] Replan: recommended + clearly under target")
         return True
 
-    # ---------- FINAL FALLBACK ----------
+    # FINAL FALLBACK 
     print(
-        "[Replan] ❌ No condition met → skip replanning | "
+        "[Replan]  No condition met → skip replanning | "
         f"score={score:.3f}, target={target_score}, "
         f"confidence={confidence:.2f}, recommended={recommended}"
     )

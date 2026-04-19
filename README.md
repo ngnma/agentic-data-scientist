@@ -169,7 +169,7 @@ See `data/README.md` for details.
 
 ---
 
-## ⚠️ Limitations
+## Limitations
 
 * Designed primarily for tabular data
 * Rule-based planning (not fully learned)
