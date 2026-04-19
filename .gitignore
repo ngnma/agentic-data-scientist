@@ -25,3 +25,6 @@ build/
 outputs/
 agent_memory.json
 
+# Data files
+data/*.csv
+
