@@ -212,7 +212,7 @@ def should_replan(reflection: Dict[str, Any], iter_no) -> bool:
         print("[Replan]  No issues detected → nothing to fix")
         return False
     
-    if iter_no < 2:
+    if iter_no < 1:
         print(f"[Replan]  Early iteration (iter_no={iter_no}) → allow replanning for faster feedback")
         return True
     
