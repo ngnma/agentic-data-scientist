@@ -529,7 +529,7 @@ class AgenticDataScientist:
                     "best_metrics": copy.deepcopy(self.state['eval_payload']["best_metrics"])
                 },
                 'reflection': copy.deepcopy(self.state.get('reflection')),
-                'should_replan': should_replan(self.state['reflection']),
+                'should_replan': should_replan(self.state['reflection'], self.state["replan_count"]),
                 'internal_memory': copy.deepcopy(self.state['internal_memory']),
             }
             self.state['history'][f'iter_{self.state["replan_count"]}'] = iter_info
@@ -544,7 +544,7 @@ class AgenticDataScientist:
                 "reflection_memory": reflection_store,
             })
 
-            if not should_replan(self.state['reflection']):
+            if not should_replan(self.state['reflection'], self.state["replan_count"]):
                 self._store_terminal_reflection(self.state)
                 break
 

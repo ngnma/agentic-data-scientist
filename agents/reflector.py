@@ -198,7 +198,7 @@ def reflect(
     }
 
 
-def should_replan(reflection: Dict[str, Any]) -> bool:
+def should_replan(reflection: Dict[str, Any], iter_no) -> bool:
     """
     Decide whether to trigger replanning based on reflection.
     Adds debug prints explaining why replanning did NOT happen.
@@ -211,6 +211,11 @@ def should_replan(reflection: Dict[str, Any]) -> bool:
     if not reflection.get("issues"):
         print("[Replan]  No issues detected → nothing to fix")
         return False
+    
+    if iter_no < 2:
+        print(f"[Replan]  Early iteration (iter_no={iter_no}) → allow replanning for faster feedback")
+        return True
+    
 
     best_metrics = reflection.get("best_metrics", {}) or {}
     f1_macro = float(best_metrics.get("f1_macro", 0.0) or 0.0)
